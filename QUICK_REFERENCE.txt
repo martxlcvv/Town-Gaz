@@ -1,0 +1,58 @@
+📧 QUICK REFERENCE CARD
+======================
+
+TO GET GMAIL APP PASSWORD:
+1. Go: myaccount.google.com/apppasswords
+2. Select: Mail, Windows Computer
+3. Click: Generate
+4. Copy: 16-character password
+
+TO CONFIGURE SYSTEM:
+File: C:\xampp\htdocs\town-gas\config\email-config.php
+
+Line 7:  define('SMTP_USER', 'YOUR-EMAIL@gmail.com');
+Line 8:  define('SMTP_PASSWORD', 'YOUR-16-CHAR-APP-PASSWORD');
+
+Save file → Done!
+
+TO TEST:
+1. http://localhost/town-gas/auth/login.php
+2. Click "Forgot Password?"
+3. Enter email → Check inbox → Enter code → New password → Login
+
+KEY FILES:
+  • config/email-config.php - Email settings & functions
+  • auth/forgot-password.php - Reset form (updated)
+  • password_resets table - Stores reset codes in database
+  • vendor/phpmailer/ - Email library
+
+CODE FUNCTIONS AVAILABLE:
+  • generateResetCode() - Create 6-digit code
+  • sendResetCode($email, $name, $code) - Send via SMTP
+  • storeResetCode($user_id, $code, $conn) - Store in DB
+  • verifyResetCode($user_id, $code, $conn) - Validate code
+  • markResetCodeAsUsed($user_id, $conn) - Mark as used
+
+FEATURES:
+  ✓ 6-digit numeric codes
+  ✓ 30-minute expiration
+  ✓ Bcrypt hashing
+  ✓ Prepared statements
+  ✓ Audit logging
+  ✓ Resend code option
+
+TROUBLESHOOTING:
+  Error: "Failed to send email"
+    → Check Gmail credentials
+    → Check 2-Step Verification enabled
+    → Check error logs: C:\xampp\apache\logs\error.log
+
+  Code not validating:
+    → Check code hasn't expired (30 mins)
+    → Check password_resets table exists
+    → Check user_id is correct
+
+  Email not received:
+    → Check spam/junk folder
+    → Verify SMTP_USER email is correct
+    → Try clicking "Send new code" button

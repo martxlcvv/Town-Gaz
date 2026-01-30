@@ -1,0 +1,161 @@
+📧 GMAIL SMTP CONFIGURATION GUIDE
+==================================
+
+This guide will help you set up Gmail to send password reset emails.
+
+---
+
+⚙️ STEP 1: Enable 2-Step Verification (If Not Already Enabled)
+================================================================
+
+1. Go to myaccount.google.com
+2. Click "Security" in the left menu
+3. Under "How you sign in to Google", find "2-Step Verification"
+4. Click on it and follow the prompts to enable it
+
+---
+
+🔐 STEP 2: Generate App Password
+=================================
+
+1. Go to myaccount.google.com/apppasswords  
+   (You must be signed in to your Google account)
+
+2. You'll see a dropdown for "Select the app and device you're using"
+   - App: Select "Mail"
+   - Device: Select "Windows Computer" (or your device type)
+
+3. Click "Generate"
+
+4. Google will show you a 16-character password like:
+   "abcd efgh ijkl mnop"
+
+5. Copy this password (spaces included or without spaces, both work)
+
+---
+
+✏️ STEP 3: Update config/email-config.php
+==========================================
+
+1. Open: C:\xampp\htdocs\town-gas\config\email-config.php
+
+2. Find lines 7-8:
+   
+   define('SMTP_USER', 'your-email@gmail.com');
+   define('SMTP_PASSWORD', 'your-app-password');
+
+3. Replace 'your-email@gmail.com' with your Gmail address
+   Example: define('SMTP_USER', 'towngas@gmail.com');
+
+4. Replace 'your-app-password' with the 16-char password from Step 2
+   Example: define('SMTP_PASSWORD', 'abcd efgh ijkl mnop');
+
+5. (Optional) Update line 11 if you want a different sender name:
+   define('SENDER_NAME', 'Town Gas POS System');
+
+6. Save the file
+
+---
+
+🧪 STEP 4: Test the System
+===========================
+
+1. Start XAMPP (Apache + MySQL must be running)
+
+2. Go to: http://localhost/town-gas/auth/login.php
+
+3. Click "Forgot Password?" button
+
+4. Enter an admin or staff email address that exists in your database
+
+5. Click "Verify Email"
+
+6. Check your Gmail inbox (or Spam folder) for the reset code email
+
+   Expected email content:
+   • From: Your configured sender email
+   • Subject: "Password Reset Code - Town Gas POS"
+   • 6-digit code displayed clearly in the email
+
+7. Copy the 6-digit code from the email
+
+8. Return to the browser and paste the code in the "Verification Code" field
+
+9. Click "Verify Code"
+
+10. Enter a new password and confirm it
+
+11. Click "Reset Password"
+
+12. You should see: "You have been successfully logged out!"
+    Then click login link or go to login page
+
+13. Login with your email and new password to verify it works
+
+---
+
+⚠️ TROUBLESHOOTING
+==================
+
+Problem: "Failed to send email. Please try again."
+
+Solution 1: Check the Gmail credentials
+  • Verify SMTP_USER is correct Gmail address
+  • Verify SMTP_PASSWORD is the App Password (not regular password)
+  • Make sure there are no extra spaces
+
+Solution 2: Verify 2-Step Verification is enabled
+  • Go to myaccount.google.com/security
+  • Confirm "2-Step Verification" shows as enabled (blue toggle)
+
+Solution 3: Check if email is blocked by Gmail
+  • Go to myaccount.google.com/u/0/security/apppasswords
+  • If the password is grayed out, 2-Step Verification is not enabled
+  • Also check Less Secure Apps is turned OFF (recommended)
+
+Solution 4: Check server error log
+  • Windows: C:\xampp\apache\logs\error.log
+  • Look for "[PHPMailer]" or "SMTP" errors
+  • Or check C:\xampp\logs\php_error.log
+
+Solution 5: Temporarily enable error display
+  • Add to auth/forgot-password.php after line 3:
+    ini_set('display_errors', 1);
+    error_reporting(E_ALL);
+  • Try the password reset again
+  • Remove the error display lines after testing
+
+---
+
+💡 ALTERNATIVE EMAIL PROVIDERS
+==============================
+
+If you don't want to use Gmail, you can use:
+
+SendGrid:
+  define('SMTP_HOST', 'smtp.sendgrid.net');
+  define('SMTP_PORT', 587);
+  define('SMTP_USER', 'apikey');
+  define('SMTP_PASSWORD', 'SG.xxxxxxxxxxxxxxxxxxxxx');
+
+Outlook/Hotmail:
+  define('SMTP_HOST', 'smtp-mail.outlook.com');
+  define('SMTP_PORT', 587);
+  define('SMTP_USER', 'your@outlook.com');
+  define('SMTP_PASSWORD', 'your-password');
+
+AWS SES:
+  define('SMTP_HOST', 'email-smtp.region.amazonaws.com');
+  define('SMTP_PORT', 587);
+  define('SMTP_USER', 'your-ses-username');
+  define('SMTP_PASSWORD', 'your-ses-password');
+
+---
+
+✨ DONE!
+========
+
+Once you've updated config/email-config.php with your Gmail credentials,
+your password reset email system is ready to use!
+
+For questions or issues, check the error log files mentioned above.

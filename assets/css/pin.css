@@ -1,0 +1,68 @@
+/* PIN Modal Styles */
+.pin-modal .modal-dialog {
+    max-width: 400px;
+}
+
+.pin-input {
+    letter-spacing: 10px;
+    font-family: monospace;
+    text-align: center;
+}
+
+.pin-dots {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.pin-dot {
+    width: 40px;
+    height: 40px;
+    border: 2px solid #dee2e6;
+    border-radius: 50%;
+    position: relative;
+}
+
+.pin-dot.filled::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    background: #3498db;
+    border-radius: 50%;
+}
+
+/* PIN Keypad */
+.pin-keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.pin-key {
+    height: 60px;
+    border: none;
+    background: #f8f9fa;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.pin-key:hover {
+    background: #e9ecef;
+}
+
+.pin-key.delete {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.pin-key.clear {
+    background: #fff3cd;
+    color: #856404;
+}
