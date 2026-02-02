@@ -75,32 +75,45 @@ include '../includes/sidebar.php';
 ?>
 
 <div class="main-content">
+    <style>
+    :root{--primary-blue:#065275;--primary-green:#00547a;--light-bg:#f8f9fa;--card-bg:#fff;--text-dark:#2c3e50;--muted:#7f8c8d}
+    .dashboard-header{background:linear-gradient(135deg,#1a4d5c 0%,#0f3543 100%);border-radius:12px;padding:2rem 1.5rem;margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center;box-shadow:0 6px 30px rgba(26,77,92,0.25);color:#fff}
+    .header-content{flex:1}
+    .header-content h1{font-size:1.8rem;font-weight:700;margin:0 0 0.25rem 0;text-shadow:0 1px 2px rgba(0,0,0,0.1)}
+    .header-content p{font-size:0.95rem;margin:0;opacity:0.9;color:#e0f2f7}
+    .header-actions{display:flex;gap:0.75rem;align-items:center}
+    .card{border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.06);border:0}
+    .card-body{padding:0.75rem}
+    .table thead th{font-size:0.85rem;padding:0.5rem 0.75rem;color:var(--text-dark);border-bottom:1px solid #eef2f4}
+    .table tbody td{padding:0.5rem 0.75rem;vertical-align:middle}
+    .btn-primary{background:var(--primary-blue);border-color:var(--primary-blue)}
+    .btn-primary:hover{background:var(--primary-green);border-color:var(--primary-green)}
+    .btn-primary.header-btn{background:#fff;color:#1a4d5c;border:none;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+    .btn-primary.header-btn:hover{background:#e8f4f8;transform:translateY(-1px)}
+    .text-muted{color:var(--muted)!important}
+    .small-muted{font-size:0.85rem;color:var(--muted)}
+    </style>
     <div class="container-fluid">
-        <div class="row mb-4">
-            <div class="col">
-                <h2><i class="bi bi-people me-2"></i>Customers</h2>
-                <p class="text-muted">Manage customer information</p>
+        <div class="dashboard-header">
+            <div class="header-content">
+                <h1><i class="bi bi-people me-2"></i>Customers</h1>
+                <p>Manage customer information and transactions</p>
             </div>
-            <div class="col-auto">
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#customerModal">
-                    <i class="bi bi-plus-circle"></i> Add Customer
+            <div class="header-actions">
+                <button class="btn btn-primary header-btn" data-bs-toggle="modal" data-bs-target="#customerModal">
+                    <i class="bi bi-plus-circle me-2"></i>Add Customer
                 </button>
             </div>
         </div>
 
-        <?php if (isset($_SESSION['success'])): ?>
-            <div class="alert alert-success alert-dismissible fade show">
-                <?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
-
-        <?php if (isset($_SESSION['error'])): ?>
-            <div class="alert alert-danger alert-dismissible fade show">
-                <?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        <?php endif; ?>
+        <?php if (isset($_SESSION['success']) || isset($_SESSION['error'])): ?>
+            <script>
+                window.serverMessage = <?php echo json_encode([
+                    'type' => isset($_SESSION['success']) ? 'success' : 'error',
+                    'text' => isset($_SESSION['success']) ? $_SESSION['success'] : $_SESSION['error']
+                ]); ?>;
+            </script>
+        <?php unset($_SESSION['success'], $_SESSION['error']); endif; ?>
 
         <!-- Customers Table -->
         <div class="card">
@@ -133,11 +146,9 @@ include '../includes/sidebar.php';
                                         <button class="btn btn-sm btn-info" onclick='editCustomer(<?php echo json_encode($customer, JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'>
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        <a href="?delete=<?php echo $customer['customer_id']; ?>" 
-                                           class="btn btn-sm btn-danger"
-                                           onclick="return confirm('Delete this customer?')">
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="confirmDelete(<?php echo (int)$customer['customer_id']; ?>)">
                                             <i class="bi bi-trash"></i>
-                                        </a>
+                                        </button>
                                     </td>
                                 </tr>
                             <?php endwhile; ?>
@@ -210,3 +221,32 @@ document.getElementById('customerModal').addEventListener('hidden.bs.modal', fun
 </script>
 
 <?php include '../includes/footer.php'; ?>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="../assets/js/sweetalert-helper.js"></script>
+<script>
+// Show server message via SweetAlert
+if (window.serverMessage) {
+    Swal.fire({
+        icon: window.serverMessage.type,
+        title: window.serverMessage.type === 'success' ? 'Success' : 'Error',
+        text: window.serverMessage.text,
+        confirmButtonColor: '#065275'
+    });
+}
+
+function confirmDelete(id) {
+    Swal.fire({
+        title: 'Delete this customer?',
+        text: 'This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, delete'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '?delete=' + encodeURIComponent(id);
+        }
+    });
+}
+</script>

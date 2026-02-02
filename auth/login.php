@@ -854,7 +854,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.0/dist/sweetalert2.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.0/dist/sweetalert2.all.min.js"></script>
     <script>
+        const LOGIN_ATTEMPTS_KEY = 'login_attempts';
+        const LOGIN_LOCKOUT_KEY = 'login_lockout_time';
+        const LOCKOUT_DURATION = 45000; // 45 seconds in milliseconds
+        const MAX_ATTEMPTS = 3;
+        let countdownInterval = null;
+
         function togglePassword() {
             const passwordInput = document.getElementById('password');
             const toggleIcon = document.getElementById('toggleIcon');
@@ -870,25 +878,220 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
 
+        function getLoginAttempts() {
+            return parseInt(localStorage.getItem(LOGIN_ATTEMPTS_KEY) || '0');
+        }
+
+        function setLoginAttempts(count) {
+            localStorage.setItem(LOGIN_ATTEMPTS_KEY, count);
+        }
+
+        function getLockoutTime() {
+            return parseInt(localStorage.getItem(LOGIN_LOCKOUT_KEY) || '0');
+        }
+
+        function setLockoutTime(time) {
+            localStorage.setItem(LOGIN_LOCKOUT_KEY, time);
+        }
+
+        function isLoginLocked() {
+            const lockoutTime = getLockoutTime();
+            if (lockoutTime === 0) return false;
+            
+            const now = Date.now();
+            if (now < lockoutTime) {
+                return true;
+            } else {
+                // Lockout expired, reset attempts
+                setLoginAttempts(0);
+                setLockoutTime(0);
+                return false;
+            }
+        }
+
+        function getSecondsUntilUnlock() {
+            const lockoutTime = getLockoutTime();
+            const now = Date.now();
+            const secondsRemaining = Math.ceil((lockoutTime - now) / 1000);
+            return Math.max(0, secondsRemaining);
+        }
+
+        function disableForm() {
+            const form = document.querySelector('form');
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            
+            form.style.opacity = '0.5';
+            form.style.pointerEvents = 'none';
+            emailInput.disabled = true;
+            passwordInput.disabled = true;
+            submitBtn.disabled = true;
+        }
+
+        function enableForm() {
+            const form = document.querySelector('form');
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            
+            form.style.opacity = '1';
+            form.style.pointerEvents = 'auto';
+            emailInput.disabled = false;
+            passwordInput.disabled = false;
+            submitBtn.disabled = false;
+        }
+
+        function startCountdown() {
+            // Clear existing interval
+            if (countdownInterval) clearInterval(countdownInterval);
+            
+            const updateCountdown = () => {
+                const remaining = getSecondsUntilUnlock();
+                const countdownEl = document.getElementById('lockout-countdown');
+                
+                if (countdownEl) {
+                    countdownEl.textContent = remaining;
+                }
+                
+                if (remaining <= 0) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                    
+                    // Reset UI
+                    enableForm();
+                    
+                    // Remove warning if exists
+                    const warningEl = document.getElementById('lockout-warning');
+                    if (warningEl) {
+                        warningEl.remove();
+                    }
+                    
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Lockout Expired',
+                        text: 'You can now try logging in again.',
+                        confirmButtonColor: '#00A8E8'
+                    });
+                }
+            };
+            
+            // Call immediately to update display
+            updateCountdown();
+            
+            // Then set interval for updates
+            countdownInterval = setInterval(updateCountdown, 1000);
+        }
+
+        function updateLockoutWarning() {
+            if (isLoginLocked()) {
+                const secondsRemaining = getSecondsUntilUnlock();
+                
+                // Disable form immediately
+                disableForm();
+                
+                // Show warning alert if not already shown
+                if (!document.getElementById('lockout-warning')) {
+                    const warningDiv = document.createElement('div');
+                    warningDiv.id = 'lockout-warning';
+                    warningDiv.className = 'alert alert-warning alert-dismissible fade show';
+                    warningDiv.innerHTML = `
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Too Many Failed Attempts!</strong> Please wait <span id="lockout-countdown">${secondsRemaining}</span> seconds before trying again.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    const alertContainer = document.querySelector('.login-header').parentElement;
+                    alertContainer.insertBefore(warningDiv, alertContainer.children[1]);
+                }
+                
+                // Start countdown that continues regardless of alert dismissal
+                startCountdown();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check and restore lockout state on page load
+            updateLockoutWarning();
+        });
+
         // ENTER key submits form
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.target.closest('.btn-close')) {
-                const form = document.querySelector('form');
-                if (form) {
-                    form.submit();
+                if (!isLoginLocked()) {
+                    const form = document.querySelector('form');
+                    if (form) {
+                        form.submit();
+                    }
                 }
             }
         });
 
-        // Simple client-side validation
+        // Form submission with attempt tracking
         document.querySelector('form').addEventListener('submit', function(e) {
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             
             if (!email || !password) {
                 e.preventDefault();
-                alert('Please fill in all fields');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Missing Fields',
+                    text: 'Please fill in all fields',
+                    confirmButtonColor: '#00A8E8'
+                });
                 return false;
+            }
+
+            // Check if locked before submission
+            if (isLoginLocked()) {
+                e.preventDefault();
+                const secondsRemaining = getSecondsUntilUnlock();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Account Locked',
+                    text: `Too many failed attempts. Please wait ${secondsRemaining} seconds before trying again.`,
+                    confirmButtonColor: '#E63946'
+                });
+                return false;
+            }
+        });
+
+        // Track failed login attempts (this is called when error message appears)
+        document.addEventListener('DOMContentLoaded', function() {
+            const errorAlert = document.querySelector('.alert-danger');
+            if (errorAlert && errorAlert.textContent.includes('Invalid')) {
+                let attempts = getLoginAttempts();
+                attempts++;
+                setLoginAttempts(attempts);
+                
+                if (attempts >= MAX_ATTEMPTS) {
+                    setLockoutTime(Date.now() + LOCKOUT_DURATION);
+                    
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Account Locked',
+                        text: 'You have exceeded the maximum number of login attempts. Please wait 45 seconds before trying again.',
+                        confirmButtonColor: '#E63946',
+                        didClose: function() {
+                            // Initialize lockout
+                            updateLockoutWarning();
+                        }
+                    });
+                } else {
+                    const attemptsLeft = MAX_ATTEMPTS - attempts;
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Invalid Credentials',
+                        text: `Login failed. You have ${attemptsLeft} attempt${attemptsLeft !== 1 ? 's' : ''} remaining before your account is locked.`,
+                        confirmButtonColor: '#00A8E8'
+                    });
+                }
+            } else if (!errorAlert) {
+                // Successful login - reset attempts
+                setLoginAttempts(0);
+                setLockoutTime(0);
+                if (countdownInterval) clearInterval(countdownInterval);
+                countdownInterval = null;
             }
         });
     </script>

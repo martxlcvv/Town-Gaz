@@ -45,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_simple'])) {
     $quantity = (int)$_POST['quantity'];
     $type = $_POST['type']; // 'add' or 'deduct'
     $reason = mysqli_real_escape_string($conn, $_POST['reason']);
+    $closing_stock = isset($_POST['closing_stock']) ? (int)$_POST['closing_stock'] : 0;
     
     // Get current inventory
     $current_sql = "SELECT current_stock FROM inventory 
@@ -55,7 +56,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_simple'])) {
         $current = mysqli_fetch_assoc($current_result);
         $current_stock = $current['current_stock'];
         
-        if ($type == 'add') {
+        // If a closing_stock (stock out value) was provided for DEDUCT, prefer that for stock-out operations.
+        if ($type == 'deduct' && $closing_stock > 0) {
+            $new_stock = $current_stock - $closing_stock;
+            if ($new_stock < 0) {
+                $_SESSION['error'] = "Cannot deduct more than current stock";
+                header('Location: inventory-update.php');
+                exit();
+            }
+        } else if ($type == 'add') {
             $new_stock = $current_stock + $quantity;
         } else {
             $new_stock = $current_stock - $quantity;
@@ -65,21 +74,110 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_simple'])) {
                 exit();
             }
         }
-        
-        // Update inventory
+
+        // Calculate delta and adjust stock_in/stock_out for consistency with POS/admin
+        $delta = $new_stock - $current_stock;
+        $stock_in_delta = 0;
+        $stock_out_delta = 0;
+        if ($delta > 0) {
+            $stock_in_delta = $delta;
+        } elseif ($delta < 0) {
+            $stock_out_delta = abs($delta);
+        }
+        // If explicit closing_stock used, ensure stock_out_delta includes it
+        if ($closing_stock > 0) {
+            $stock_out_delta = max($stock_out_delta, $closing_stock);
+        }
+
+        // Update inventory (current_stock + keep stock_in/stock_out and opening/closing in sync)
         $update_sql = "UPDATE inventory SET 
-                      current_stock = $new_stock,
+                      current_stock = ?,
+                      stock_in = COALESCE(stock_in,0) + ?,
+                      stock_out = COALESCE(stock_out,0) + ?,
+                      opening_stock = COALESCE(opening_stock,0) + ?,
+                      closing_stock = COALESCE(closing_stock,0) + ?,
                       updated_at = NOW(),
-                      updated_by = {$_SESSION['user_id']}
-                      WHERE product_id = $product_id AND date = CURDATE()";
-        
-        if (mysqli_query($conn, $update_sql)) {
-            $_SESSION['success'] = "Inventory updated successfully";
+                      updated_by = ?
+                      WHERE product_id = ? AND date = CURDATE()";
+
+        $update_stmt = mysqli_prepare($conn, $update_sql);
+        if ($update_stmt) {
+            $uid = $_SESSION['user_id'];
+            mysqli_stmt_bind_param($update_stmt, 'iiiiiii', $new_stock, $stock_in_delta, $stock_out_delta, $stock_in_delta, $stock_out_delta, $uid, $product_id);
+            if (mysqli_stmt_execute($update_stmt)) {
+                $_SESSION['success'] = "Inventory updated successfully";
+                // Audit log
+                log_audit($uid, 'UPDATE', 'inventory', $product_id, ['current_stock' => $current_stock], ['current_stock' => $new_stock, 'stock_in_delta' => $stock_in_delta, 'stock_out_delta' => $stock_out_delta]);
+            } else {
+                $_SESSION['error'] = "Error updating inventory";
+            }
+            mysqli_stmt_close($update_stmt);
         } else {
-            $_SESSION['error'] = "Error updating inventory";
+            $_SESSION['error'] = "Error preparing inventory update";
         }
     } else {
-        $_SESSION['error'] = "Product inventory not found for today";
+        // Auto-create inventory row for today and then apply update
+        $insert_sql = "INSERT INTO inventory (product_id, stock_in, stock_out, opening_stock, closing_stock, current_stock, date, updated_by, created_at, updated_at) 
+                       VALUES (?, 0, 0, 0, 0, 0, CURDATE(), ?, NOW(), NOW())";
+        $insert_stmt = mysqli_prepare($conn, $insert_sql);
+        if ($insert_stmt) {
+            $uid = $_SESSION['user_id'];
+            mysqli_stmt_bind_param($insert_stmt, 'ii', $product_id, $uid);
+            mysqli_stmt_execute($insert_stmt);
+            mysqli_stmt_close($insert_stmt);
+            // Re-run the update flow by setting current_stock to 0 and computing new_stock
+            $current_stock = 0;
+            if ($type == 'deduct' && $closing_stock > 0) {
+                $new_stock = $current_stock - $closing_stock;
+                if ($new_stock < 0) {
+                    $_SESSION['error'] = "Cannot deduct more than current stock";
+                    header('Location: inventory-update.php');
+                    exit();
+                }
+            } else if ($type == 'add') {
+                $new_stock = $current_stock + $quantity;
+            } else {
+                $new_stock = $current_stock - $quantity;
+                if ($new_stock < 0) {
+                    $_SESSION['error'] = "Cannot deduct more than current stock";
+                    header('Location: inventory-update.php');
+                    exit();
+                }
+            }
+
+            $delta = $new_stock - $current_stock;
+            $stock_in_delta = $delta > 0 ? $delta : 0;
+            $stock_out_delta = $delta < 0 ? abs($delta) : 0;
+            if ($closing_stock > 0) {
+                $stock_out_delta = max($stock_out_delta, $closing_stock);
+            }
+
+            $update_sql = "UPDATE inventory SET 
+                      current_stock = ?,
+                      stock_in = COALESCE(stock_in,0) + ?,
+                      stock_out = COALESCE(stock_out,0) + ?,
+                      opening_stock = COALESCE(opening_stock,0) + ?,
+                      closing_stock = COALESCE(closing_stock,0) + ?,
+                      updated_at = NOW(),
+                      updated_by = ?
+                      WHERE product_id = ? AND date = CURDATE()";
+
+            $update_stmt = mysqli_prepare($conn, $update_sql);
+            if ($update_stmt) {
+                mysqli_stmt_bind_param($update_stmt, 'iiiiiii', $new_stock, $stock_in_delta, $stock_out_delta, $stock_in_delta, $stock_out_delta, $uid, $product_id);
+                if (mysqli_stmt_execute($update_stmt)) {
+                    $_SESSION['success'] = "Inventory created and updated successfully";
+                    log_audit($uid, 'INSERT_UPDATE', 'inventory', $product_id, ['current_stock' => 0], ['current_stock' => $new_stock, 'stock_in_delta' => $stock_in_delta, 'stock_out_delta' => $stock_out_delta]);
+                } else {
+                    $_SESSION['error'] = "Error updating newly created inventory";
+                }
+                mysqli_stmt_close($update_stmt);
+            } else {
+                $_SESSION['error'] = "Error preparing inventory update";
+            }
+        } else {
+            $_SESSION['error'] = "Product inventory not found for today";
+        }
     }
     
     header('Location: inventory-update.php');
@@ -110,6 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_with_pin'])) {
         $quantity = (int)$_POST['quantity'];
         $type = $_POST['type']; // 'add' or 'deduct'
         $reason = mysqli_real_escape_string($conn, $_POST['reason']);
+        $closing_stock = isset($_POST['closing_stock']) ? (int)$_POST['closing_stock'] : 0;
         
         // Get current inventory
         $current_sql = "SELECT current_stock FROM inventory 
@@ -120,7 +219,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_with_pin'])) {
             $current = mysqli_fetch_assoc($current_result);
             $current_stock = $current['current_stock'];
             
-            if ($type == 'add') {
+            // If a closing_stock (stock out value) was provided for DEDUCT, prefer that for stock-out operations.
+            if ($type == 'deduct' && $closing_stock > 0) {
+                $new_stock = $current_stock - $closing_stock;
+                if ($new_stock < 0) {
+                    $_SESSION['error'] = "Cannot deduct more than current stock";
+                    header('Location: inventory-update.php');
+                    exit();
+                }
+            } else if ($type == 'add') {
                 $new_stock = $current_stock + $quantity;
             } else {
                 $new_stock = $current_stock - $quantity;
@@ -130,21 +237,110 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_with_pin'])) {
                     exit();
                 }
             }
-            
-            // Update inventory
+
+            // Calculate delta and adjust stock_in/stock_out for consistency with POS/admin
+            $delta = $new_stock - $current_stock;
+            $stock_in_delta = 0;
+            $stock_out_delta = 0;
+            if ($delta > 0) {
+                $stock_in_delta = $delta;
+            } elseif ($delta < 0) {
+                $stock_out_delta = abs($delta);
+            }
+            // If explicit closing_stock used, ensure stock_out_delta includes it
+            if ($closing_stock > 0) {
+                $stock_out_delta = max($stock_out_delta, $closing_stock);
+            }
+
+            // Update inventory (current_stock + keep stock_in/stock_out and opening/closing in sync)
             $update_sql = "UPDATE inventory SET 
-                          current_stock = $new_stock,
+                          current_stock = ?,
+                          stock_in = COALESCE(stock_in,0) + ?,
+                          stock_out = COALESCE(stock_out,0) + ?,
+                          opening_stock = COALESCE(opening_stock,0) + ?,
+                          closing_stock = COALESCE(closing_stock,0) + ?,
                           updated_at = NOW(),
-                          updated_by = {$_SESSION['user_id']}
-                          WHERE product_id = $product_id AND date = CURDATE()";
-            
-            if (mysqli_query($conn, $update_sql)) {
-                $_SESSION['success'] = "Inventory updated successfully";
+                          updated_by = ?
+                          WHERE product_id = ? AND date = CURDATE()";
+
+            $update_stmt = mysqli_prepare($conn, $update_sql);
+            if ($update_stmt) {
+                $uid = $_SESSION['user_id'];
+                mysqli_stmt_bind_param($update_stmt, 'iiiiiii', $new_stock, $stock_in_delta, $stock_out_delta, $stock_in_delta, $stock_out_delta, $uid, $product_id);
+                if (mysqli_stmt_execute($update_stmt)) {
+                    $_SESSION['success'] = "Inventory updated successfully";
+                    // Audit log
+                    log_audit($uid, 'UPDATE', 'inventory', $product_id, ['current_stock' => $current_stock], ['current_stock' => $new_stock, 'stock_in_delta' => $stock_in_delta, 'stock_out_delta' => $stock_out_delta]);
+                } else {
+                    $_SESSION['error'] = "Error updating inventory";
+                }
+                mysqli_stmt_close($update_stmt);
             } else {
-                $_SESSION['error'] = "Error updating inventory";
+                $_SESSION['error'] = "Error preparing inventory update";
             }
         } else {
-            $_SESSION['error'] = "Product inventory not found for today";
+            // Auto-create inventory row for today and then apply update
+            $insert_sql = "INSERT INTO inventory (product_id, stock_in, stock_out, opening_stock, closing_stock, current_stock, date, updated_by, created_at, updated_at) 
+                           VALUES (?, 0, 0, 0, 0, 0, CURDATE(), ?, NOW(), NOW())";
+            $insert_stmt = mysqli_prepare($conn, $insert_sql);
+            if ($insert_stmt) {
+                $uid = $_SESSION['user_id'];
+                mysqli_stmt_bind_param($insert_stmt, 'ii', $product_id, $uid);
+                mysqli_stmt_execute($insert_stmt);
+                mysqli_stmt_close($insert_stmt);
+                // Re-run the update flow by setting current_stock to 0 and computing new_stock
+                $current_stock = 0;
+                if ($type == 'deduct' && $closing_stock > 0) {
+                    $new_stock = $current_stock - $closing_stock;
+                    if ($new_stock < 0) {
+                        $_SESSION['error'] = "Cannot deduct more than current stock";
+                        header('Location: inventory-update.php');
+                        exit();
+                    }
+                } else if ($type == 'add') {
+                    $new_stock = $current_stock + $quantity;
+                } else {
+                    $new_stock = $current_stock - $quantity;
+                    if ($new_stock < 0) {
+                        $_SESSION['error'] = "Cannot deduct more than current stock";
+                        header('Location: inventory-update.php');
+                        exit();
+                    }
+                }
+
+                $delta = $new_stock - $current_stock;
+                $stock_in_delta = $delta > 0 ? $delta : 0;
+                $stock_out_delta = $delta < 0 ? abs($delta) : 0;
+                if ($closing_stock > 0) {
+                    $stock_out_delta = max($stock_out_delta, $closing_stock);
+                }
+
+                $update_sql = "UPDATE inventory SET 
+                          current_stock = ?,
+                          stock_in = COALESCE(stock_in,0) + ?,
+                          stock_out = COALESCE(stock_out,0) + ?,
+                          opening_stock = COALESCE(opening_stock,0) + ?,
+                          closing_stock = COALESCE(closing_stock,0) + ?,
+                          updated_at = NOW(),
+                          updated_by = ?
+                          WHERE product_id = ? AND date = CURDATE()";
+
+                $update_stmt = mysqli_prepare($conn, $update_sql);
+                if ($update_stmt) {
+                    mysqli_stmt_bind_param($update_stmt, 'iiiiiii', $new_stock, $stock_in_delta, $stock_out_delta, $stock_in_delta, $stock_out_delta, $uid, $product_id);
+                    if (mysqli_stmt_execute($update_stmt)) {
+                        $_SESSION['success'] = "Inventory created and updated successfully";
+                        log_audit($uid, 'INSERT_UPDATE', 'inventory', $product_id, ['current_stock' => 0], ['current_stock' => $new_stock, 'stock_in_delta' => $stock_in_delta, 'stock_out_delta' => $stock_out_delta]);
+                    } else {
+                        $_SESSION['error'] = "Error updating newly created inventory";
+                    }
+                    mysqli_stmt_close($update_stmt);
+                } else {
+                    $_SESSION['error'] = "Error preparing inventory update";
+                }
+            } else {
+                $_SESSION['error'] = "Product inventory not found for today";
+            }
         }
     } else {
         error_log("PIN VERIFICATION FAILED");
@@ -206,38 +402,19 @@ include '../includes/sidebar.php';
 <div class="main-content">
     <div class="container-fluid">
         <!-- Page Header -->
-        <div class="page-header">
+        <div class="dashboard-header">
             <div class="header-content">
-                <h2><i class="bi bi-box-seam me-2"></i>Inventory Update</h2>
-                <p class="text-muted">Update product stock levels - requires PIN verification</p>
+                <h1><i class="bi bi-box-seam me-2"></i>Inventory Update</h1>
+                <p>Manage product stock levels - PIN verification required</p>
             </div>
-            <button class="btn-primary-action" data-bs-toggle="modal" data-bs-target="#updateModal">
-                <i class="bi bi-plus-circle"></i> Update Stock
-            </button>
+            <div class="header-actions">
+                <button class="btn-primary header-btn" data-bs-toggle="modal" data-bs-target="#updateModal">
+                    <i class="bi bi-plus-circle me-2"></i>Update Stock
+                </button>
+            </div>
         </div>
 
-        <!-- Alert Messages -->
-        <?php if (isset($_SESSION['success'])): ?>
-            <div class="alert-box alert-success">
-                <i class="bi bi-check-circle"></i>
-                <div>
-                    <strong>Success</strong>
-                    <p><?php echo $_SESSION['success']; unset($_SESSION['success']); ?></p>
-                </div>
-                <button type="button" class="close-alert">&times;</button>
-            </div>
-        <?php endif; ?>
-
-        <?php if (isset($_SESSION['error'])): ?>
-            <div class="alert-box alert-danger">
-                <i class="bi bi-exclamation-circle"></i>
-                <div>
-                    <strong>Error</strong>
-                    <p><?php echo $_SESSION['error']; unset($_SESSION['error']); ?></p>
-                </div>
-                <button type="button" class="close-alert">&times;</button>
-            </div>
-        <?php endif; ?>
+        <!-- Flash messages are shown using SweetAlert -->
 
         <!-- Stats Grid -->
         <div class="stats-grid">
@@ -247,7 +424,7 @@ include '../includes/sidebar.php';
                         <i class="bi bi-box2"></i>
                     </div>
                     <div>
-                        <p class="stat-label">Opening Stock</p>
+                            <p class="stat-label">Stock In</p>
                         <p class="stat-number"><?php echo $stats['total_opening'] ?? 0; ?></p>
                     </div>
                 </div>
@@ -271,7 +448,7 @@ include '../includes/sidebar.php';
                         <i class="bi bi-box2-heart"></i>
                     </div>
                     <div>
-                        <p class="stat-label">Closing Stock</p>
+                        <p class="stat-label">Stock Out</p>
                         <p class="stat-number"><?php echo $stats['total_closing'] ?? 0; ?></p>
                     </div>
                 </div>
@@ -302,9 +479,9 @@ include '../includes/sidebar.php';
                         <thead>
                             <tr>
                                 <th>Product Name</th>
-                                <th>Opening Stock</th>
+                                <th>Stock In</th>
                                 <th>Current Stock</th>
-                                <th>Closing Stock</th>
+                                <th>Stock Out</th>
                                 <th>Unit</th>
                                 <th>Status</th>
                                 <th>Action</th>
@@ -365,7 +542,7 @@ include '../includes/sidebar.php';
                                     <th>Updated By</th>
                                     <th>Time</th>
                                     <th>Current Stock</th>
-                                    <th>Closing Stock</th>
+                                    <th>Stock Out</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -406,6 +583,7 @@ include '../includes/sidebar.php';
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <form id="updateForm" method="POST">
+                <?php echo output_token_field(); ?>
                 <div class="modal-header">
                     <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Update Inventory</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -455,9 +633,9 @@ include '../includes/sidebar.php';
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label">Closing Stock</label>
-                        <input type="number" class="form-control" id="closing_stock" name="closing_stock" min="0" step="1" placeholder="Enter closing stock">
-                        <small style="color: #7f8c8d; margin-top: 0.3rem; display: block;">Current Closing: <strong id="closingStockDisplay">0</strong></small>
+                        <label class="form-label">Stock Out</label>
+                        <input type="number" class="form-control" id="closing_stock" name="closing_stock" min="0" step="1" placeholder="Enter stock out value">
+                        <small style="color: #7f8c8d; margin-top: 0.3rem; display: block;">Current Stock Out: <strong id="closingStockDisplay">0</strong></small>
                     </div>
                     
                     <div class="form-group">
@@ -492,6 +670,7 @@ include '../includes/sidebar.php';
                     <p class="text-center text-muted mb-4" style="font-size: 0.95rem; margin-bottom: 1.5rem;">Enter your 6-digit PIN to confirm</p>
                     
                     <form id="pinForm" method="POST">
+                        <?php echo output_token_field(); ?>
                         <input type="hidden" name="update_with_pin" value="1">
                         <input type="hidden" name="product_id" id="pinProductId">
                         <input type="hidden" name="quantity" id="pinQuantity">
@@ -537,8 +716,8 @@ include '../includes/sidebar.php';
 <style>
 /* Root Variables */
 :root {
-    --primary-blue: #3498db;
-    --primary-green: #27ae60;
+    --primary-blue: #065275; /* admin teal */
+    --primary-green: #00547a; /* darker teal */
     --primary-orange: #e67e22;
     --primary-red: #e74c3c;
     --primary-purple: #9b59b6;
@@ -547,8 +726,8 @@ include '../includes/sidebar.php';
     --text-dark: #2c3e50;
     --text-light: #7f8c8d;
     --border-color: #e9ecef;
-    --shadow-light: 0 2px 10px rgba(0,0,0,0.04);
-    --shadow-medium: 0 4px 20px rgba(0,0,0,0.06);
+    --shadow-light: 0 1px 6px rgba(0,0,0,0.04);
+    --shadow-medium: 0 2px 10px rgba(0,0,0,0.06);
 }
 
 body {
@@ -556,20 +735,69 @@ body {
     color: var(--text-dark);
 }
 
+/* Dashboard Header */
+.dashboard-header {
+    background: linear-gradient(135deg, #1a4d5c 0%, #0f3543 100%);
+    border-radius: 12px;
+    padding: 2rem 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 6px 30px rgba(26, 77, 92, 0.25);
+    color: white;
+}
+
+.header-content {
+    flex: 1;
+}
+
+.header-content h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem 0;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.header-content p {
+    font-size: 0.95rem;
+    margin: 0;
+    opacity: 0.9;
+    color: #e0f2f7;
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.btn-primary.header-btn {
+    background: #fff;
+    color: #1a4d5c;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.btn-primary.header-btn:hover {
+    background: #e8f4f8;
+    transform: translateY(-1px);
+}
+
 /* Page Header */
 .page-header {
     background: var(--card-bg);
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
     box-shadow: var(--shadow-light);
-    border-left: 5px solid #065275;
-    border-top: 3px solid #00547a;
+    border-left: 4px solid var(--primary-blue);
+    border-top: 2px solid var(--primary-green);
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 0.5rem;
 }
 
 .header-content h2 {
@@ -594,16 +822,13 @@ body {
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    white-space: nowrap;
+    display: none;
 }
 
 .btn-primary-action:hover {
-    background: #2980b9;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+    background: #043a52;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(4,58,82,0.12);
 }
 
 /* Alert Messages */
@@ -677,15 +902,15 @@ body {
 
 .stat-card {
     background: var(--card-bg);
-    border-radius: 10px;
-    padding: 1.25rem;
+    border-radius: 8px;
+    padding: 0.75rem;
     box-shadow: var(--shadow-light);
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
     border-top: 4px solid;
 }
 
 .stat-card:hover {
-    transform: translateY(-3px);
+    transform: translateY(-2px);
     box-shadow: var(--shadow-medium);
 }
 
@@ -707,28 +932,28 @@ body {
 
 .stat-content {
     display: flex;
-    align-items: flex-start;
-    gap: 1rem;
+    align-items: center;
+    gap: 0.75rem;
 }
 
 .stat-icon {
-    width: 50px;
-    height: 50px;
+    width: 44px;
+    height: 44px;
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     flex-shrink: 0;
 }
 
 .stat-icon.opening {
-    background: rgba(52, 152, 219, 0.1);
+    background: rgba(6, 82, 117, 0.08);
     color: var(--primary-blue);
 }
 
 .stat-icon.current {
-    background: rgba(39, 174, 96, 0.1);
+    background: rgba(0, 84, 122, 0.06);
     color: var(--primary-green);
 }
 
@@ -743,16 +968,16 @@ body {
 }
 
 .stat-label {
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
     color: var(--text-light);
-    font-weight: 600;
-    margin: 0 0 0.25rem 0;
+    font-weight: 700;
+    margin: 0;
 }
 
 .stat-number {
-    font-size: 1.8rem;
+    font-size: 1.4rem;
     font-weight: 800;
     color: var(--text-dark);
     margin: 0;
@@ -779,13 +1004,13 @@ body {
 
 .card-header {
     background: var(--light-bg);
-    padding: 1.25rem;
+    padding: 0.75rem;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 0.5rem;
 }
 
 .card-header h3 {
@@ -803,17 +1028,17 @@ body {
 }
 
 .search-input {
-    padding: 0.5rem 1rem;
+    padding: 0.4rem 0.8rem;
     border: 1px solid var(--border-color);
     border-radius: 6px;
-    font-size: 0.9rem;
-    min-width: 250px;
+    font-size: 0.85rem;
+    min-width: 220px;
 }
 
 .search-input:focus {
     outline: none;
     border-color: var(--primary-blue);
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    box-shadow: 0 0 0 3px rgba(6,82,117,0.06);
 }
 
 /* Table */
@@ -832,17 +1057,17 @@ body {
 }
 
 .inventory-table th {
-    padding: 1rem;
+    padding: 0.6rem 0.75rem;
     text-align: left;
     font-weight: 600;
     color: var(--text-dark);
     border-bottom: 1px solid var(--border-color);
     white-space: nowrap;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 .inventory-table td {
-    padding: 1rem;
+    padding: 0.6rem 0.75rem;
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
 }
@@ -895,7 +1120,7 @@ body {
 }
 
 .btn-edit:hover {
-    background: #2980b9;
+    background: #043a52;
     transform: translateY(-1px);
 }
 
@@ -998,19 +1223,19 @@ body {
 
 .form-control, .form-select {
     width: 100%;
-    padding: 0.75rem;
+    padding: 0.6rem 0.75rem;
     border: 1px solid var(--border-color);
     border-radius: 6px;
     font-size: 0.9rem;
     color: var(--text-dark);
     background: white;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
 }
 
 .form-control:focus, .form-select:focus {
     outline: none;
     border-color: var(--primary-blue);
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    box-shadow: 0 0 0 3px rgba(6,82,117,0.06);
 }
 
 .form-control::placeholder {
@@ -1020,15 +1245,15 @@ body {
 /* Modal Styles */
 .modal-content {
     border: none;
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
 }
 
 .modal-header {
     background: var(--light-bg);
     border: none;
     border-bottom: 1px solid var(--border-color);
-    padding: 1.5rem;
+    padding: 1rem;
 }
 
 .modal-title {
@@ -1038,13 +1263,13 @@ body {
 }
 
 .modal-body {
-    padding: 1.5rem;
+    padding: 1rem;
 }
 
 .modal-footer {
     background: var(--light-bg);
     border-top: 1px solid var(--border-color);
-    padding: 1.25rem;
+    padding: 0.75rem;
 }
 
 .btn-secondary {
@@ -1232,6 +1457,16 @@ body {
 
 <script src="../assets/js/sweetalert-helper.js"></script>
 <script>
+// Pass server flash messages to JS for SweetAlert display
+<?php if (isset($_SESSION['success'])): ?>
+    <?php $msg = $_SESSION['success']; unset($_SESSION['success']); ?>
+    window.flash = <?php echo json_encode(['type' => 'success', 'message' => $msg]); ?>;
+<?php elseif (isset($_SESSION['error'])): ?>
+    <?php $msg = $_SESSION['error']; unset($_SESSION['error']); ?>
+    window.flash = <?php echo json_encode(['type' => 'error', 'message' => $msg]); ?>;
+<?php else: ?>
+    window.flash = null;
+<?php endif; ?>
 // Search functionality
 document.getElementById('searchInventory').addEventListener('keyup', function() {
     const searchTerm = this.value.toLowerCase();
@@ -1508,6 +1743,18 @@ document.querySelectorAll('.close-alert').forEach(btn => {
         this.closest('.alert-box').remove();
     });
 });
+
+// Show SweetAlert for server flash messages (if any)
+if (window.flash) {
+    const f = window.flash;
+    Swal.fire({
+        icon: f.type === 'success' ? 'success' : 'error',
+        title: f.type === 'success' ? 'Success' : 'Error',
+        text: f.message,
+        confirmButtonColor: '#3498db',
+        timer: 3500
+    });
+}
 </script>
 
 <?php include '../includes/footer.php'; ?>

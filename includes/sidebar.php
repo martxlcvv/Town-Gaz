@@ -671,7 +671,7 @@ body {
             <i class="bi bi-fuel-pump"></i>
         </div>
         <div class="brand-text">
-            <div class="brand-name">TOWN GAS</div>
+            <div class="brand-name">TOWN GAZ</div>
             <div class="brand-subtitle">LPG ng Bayan</div>
         </div>
     </div>
@@ -723,12 +723,6 @@ body {
                            href="../admin/products.php" data-tooltip="Products">
                             <i class="bi bi-droplet"></i>
                             <span>Products</span>
-                        </a>
-                        
-                        <a class="nav-link <?php echo ($current_page == 'promotions.php') ? 'active' : ''; ?>" 
-                           href="../admin/promotions.php" data-tooltip="Promotions">
-                            <i class="bi bi-percent"></i>
-                            <span>Promotions</span>
                         </a>
                     </div>
                 </div>
@@ -792,12 +786,6 @@ body {
                             <i class="bi bi-person-badge"></i>
                             <span>Riders</span>
                         </a>
-                        
-                        <a class="nav-link <?php echo ($current_page == 'attendance.php') ? 'active' : ''; ?>" 
-                           href="../admin/attendance.php" data-tooltip="Attendance">
-                            <i class="bi bi-clock-history"></i>
-                            <span>Attendance</span>
-                        </a>
                     </div>
                 </div>
                 
@@ -815,12 +803,6 @@ body {
                            href="../admin/audit-logs.php" data-tooltip="Audit Logs">
                             <i class="bi bi-file-text"></i>
                             <span>Audit Logs</span>
-                        </a>
-                        
-                        <a class="nav-link <?php echo ($current_page == 'backup.php') ? 'active' : ''; ?>" 
-                           href="../admin/backup.php" data-tooltip="Backup">
-                            <i class="bi bi-database"></i>
-                            <span>Backup</span>
                         </a>
                     </div>
                 </div>
@@ -886,12 +868,6 @@ body {
                            href="inventory-update.php" data-tooltip="Inventory Update">
                             <i class="bi bi-box-seam"></i>
                             <span>Inventory Update</span>
-                        </a>
-                        
-                        <a class="nav-link <?php echo ($current_page == 'mark-rider-attendance.php') ? 'active' : ''; ?>" 
-                           href="mark-rider-attendance.php" data-tooltip="Rider Attendance">
-                            <i class="bi bi-bicycle"></i>
-                            <span>Rider Attendance</span>
                         </a>
                     </div>
                 </div>

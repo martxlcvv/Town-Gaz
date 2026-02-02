@@ -57,7 +57,7 @@ if (!$product_id || $quantity_change === 0) {
 $today = date('Y-m-d');
 
 // Check if inventory record exists for today
-$check_sql = "SELECT current_stock FROM inventory WHERE product_id = ? AND date = ?";
+$check_sql = "SELECT COALESCE(SUM(stock_in) - SUM(stock_out), 0) as current_stock FROM inventory WHERE product_id = ? AND date = ?";
 $stmt = mysqli_prepare($conn, $check_sql);
 
 if (!$stmt) {
@@ -90,25 +90,34 @@ if ($new_stock < 0) {
 
 // If no inventory record for today, create it
 if (!$row) {
-    $insert_sql = "INSERT INTO inventory (product_id, date, opening_stock, current_stock, closing_stock) 
-                   VALUES (?, ?, ?, ?, ?)";
+    $insert_sql = "INSERT INTO inventory (product_id, date, stock_in, stock_out, updated_by) 
+                   VALUES (?, ?, 0, 0, ?)";
     $insert_stmt = mysqli_prepare($conn, $insert_sql);
     
     if ($insert_stmt) {
-        mysqli_stmt_bind_param($insert_stmt, "isiii", $product_id, $today, $current_stock, $new_stock, $new_stock);
+        $user_id = intval($_SESSION['user_id']);
+        mysqli_stmt_bind_param($insert_stmt, "isi", $product_id, $today, $user_id);
         mysqli_stmt_execute($insert_stmt);
         mysqli_stmt_close($insert_stmt);
     }
+}
+
+// Update existing inventory: if decreasing use stock_out, if increasing use stock_in
+if ($quantity_change > 0) {
+    // Items added to cart - this decreases available stock (increases stock_out)
+    $update_sql = "UPDATE inventory SET stock_out = stock_out + ? WHERE product_id = ? AND date = ?";
 } else {
-    // Update existing inventory record
-    $update_sql = "UPDATE inventory SET current_stock = ? WHERE product_id = ? AND date = ?";
-    $update_stmt = mysqli_prepare($conn, $update_sql);
-    
-    if ($update_stmt) {
-        mysqli_stmt_bind_param($update_stmt, "iis", $new_stock, $product_id, $today);
-        mysqli_stmt_execute($update_stmt);
-        mysqli_stmt_close($update_stmt);
-    }
+    // Items removed/decreased - this restores available stock (decreases stock_out or increases stock_in)
+    $update_sql = "UPDATE inventory SET stock_in = stock_in + ? WHERE product_id = ? AND date = ?";
+}
+
+$update_stmt = mysqli_prepare($conn, $update_sql);
+
+if ($update_stmt) {
+    $change_value = abs($quantity_change);
+    mysqli_stmt_bind_param($update_stmt, "iis", $change_value, $product_id, $today);
+    mysqli_stmt_execute($update_stmt);
+    mysqli_stmt_close($update_stmt);
 }
 
 // Get product name for response

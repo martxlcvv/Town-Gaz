@@ -4,11 +4,13 @@
  * Returns customer details (name, contact, address)
  */
 
-session_start();
-require_once '../config/database.php';
-require_once '../auth/check-auth.php';
-
+// Set JSON header FIRST - before ANY code
 header('Content-Type: application/json');
+
+// Start session
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
@@ -17,11 +19,15 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// Get customer ID from request
-$customer_id = isset($_GET['id']) ? trim($_GET['id']) : '';
+// Connect to database
+require_once '../config/database.php';
 
-if (empty($customer_id)) {
-    echo json_encode(['success' => false, 'message' => 'Customer ID is required']);
+// Get customer ID from request
+$customer_id = isset($_GET['id']) ? intval(trim($_GET['id'])) : 0;
+
+if (empty($customer_id) || $customer_id <= 0) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Invalid customer ID']);
     exit;
 }
 
@@ -30,6 +36,7 @@ $sql = "SELECT customer_id, customer_name, contact, address FROM customers WHERE
 $stmt = mysqli_prepare($conn, $sql);
 
 if (!$stmt) {
+    http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Database error']);
     exit;
 }
@@ -45,11 +52,12 @@ if ($customer) {
         'success' => true,
         'customer' => [
             'customer_id' => $customer['customer_id'],
-            'customer_name' => htmlspecialchars($customer['customer_name']),
-            'contact' => htmlspecialchars($customer['contact'] ?? ''),
-            'address' => htmlspecialchars($customer['address'] ?? '')
+            'customer_name' => $customer['customer_name'],
+            'contact' => $customer['contact'] ?? '',
+            'address' => $customer['address'] ?? ''
         ]
     ]);
 } else {
+    http_response_code(404);
     echo json_encode(['success' => false, 'message' => 'Customer not found']);
 }

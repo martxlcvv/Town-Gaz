@@ -621,5 +621,4 @@ header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
     <?php if (isset($_SESSION['user_id'])): ?>
     <script src="<?php echo (isset($_SESSION['role_name']) && $_SESSION['role_name'] == 'Admin') ? '../' : '../'; ?>assets/js/inactivity-logout.js"></script>
     <?php endif; ?>
-</body>
-</html>
+<!-- Page body and closing tags are handled by footer.php -->

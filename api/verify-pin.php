@@ -4,15 +4,28 @@
  * Verifies PIN for sensitive operations (works for both admin and staff)
  */
 
+// Suppress all output except JSON
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
+ini_set('log_errors', 1);
+
+// Start output buffering to catch any accidental output
+ob_start();
+
 session_start();
+
+// Set JSON header FIRST
+header('Content-Type: application/json; charset=utf-8');
+
+// Require database after headers
 require_once '../config/database.php';
 require_once '../auth/check-auth.php';
-
-header('Content-Type: application/json');
 
 // Only allow POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
+    ob_end_clean();
     echo json_encode(['success' => false, 'message' => 'Method not allowed']);
     exit;
 }
@@ -20,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
+    ob_end_clean();
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
 }
@@ -37,6 +51,7 @@ if (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'applica
 }
 
 if (empty($pin)) {
+    ob_end_clean();
     echo json_encode(['success' => false, 'message' => 'PIN is required']);
     exit;
 }
@@ -47,6 +62,7 @@ $sql = "SELECT pin_hash FROM admin_pins WHERE user_id = ?";
 $stmt = mysqli_prepare($conn, $sql);
 
 if (!$stmt) {
+    ob_end_clean();
     echo json_encode(['success' => false, 'message' => 'Database error']);
     exit;
 }
@@ -58,6 +74,7 @@ $pin_data = mysqli_fetch_assoc($result);
 mysqli_stmt_close($stmt);
 
 if (!$pin_data || empty($pin_data['pin_hash'])) {
+    ob_end_clean();
     echo json_encode(['success' => false, 'message' => 'PIN not configured for this user']);
     exit;
 }
@@ -72,6 +89,8 @@ if ($pin_verified) {
                  ['action' => 'PIN verification successful']);
     }
     
+    ob_end_clean();
+    http_response_code(200);
     echo json_encode(['success' => true, 'message' => 'PIN verified successfully']);
 } else {
     // Log failed PIN verification attempt if log_audit function exists
@@ -80,6 +99,8 @@ if ($pin_verified) {
                  ['action' => 'PIN verification failed']);
     }
     
+    ob_end_clean();
+    http_response_code(200);
     echo json_encode(['success' => false, 'message' => 'Invalid PIN']);
 }
 

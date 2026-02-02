@@ -731,8 +731,8 @@ if (isset($_POST['verify_code']) && empty($error)) {
                                 </button>
                             </div>
                             
-                            <a href="forgot-password.php" class="btn btn-back w-100">
-                                <i class="bi bi-arrow-left me-2"></i>Start Over
+                            <a href="login.php" class="btn btn-back w-100">
+                                <i class="bi bi-arrow-left me-2"></i>Back to Login
                             </a>
                         </form>
                     <?php endif; ?>
@@ -785,5 +785,134 @@ if (isset($_POST['verify_code']) && empty($error)) {
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.0/dist/sweetalert2.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.0/dist/sweetalert2.all.min.js"></script>
+    <script>
+        const RESET_CODE_COOLDOWN_KEY = 'reset_code_cooldown_time';
+        const RESET_CODE_COOLDOWN_DURATION = 600000; // 10 minutes in milliseconds
+        let resendCountdownInterval = null;
+
+        function getResetCodeCooldownTime() {
+            return parseInt(localStorage.getItem(RESET_CODE_COOLDOWN_KEY) || '0');
+        }
+
+        function setResetCodeCooldownTime(time) {
+            localStorage.setItem(RESET_CODE_COOLDOWN_KEY, time);
+        }
+
+        function isResetCodeOnCooldown() {
+            const cooldownTime = getResetCodeCooldownTime();
+            if (cooldownTime === 0) return false;
+            
+            const now = Date.now();
+            if (now < cooldownTime) {
+                return true;
+            } else {
+                setResetCodeCooldownTime(0);
+                return false;
+            }
+        }
+
+        function getSecondsUntilCanResend() {
+            const cooldownTime = getResetCodeCooldownTime();
+            const now = Date.now();
+            const secondsRemaining = Math.ceil((cooldownTime - now) / 1000);
+            return Math.max(0, secondsRemaining);
+        }
+
+        function formatTimeRemaining(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${minutes}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updateResendCodeButton() {
+            const resendBtn = document.querySelector('button[name="request_new_code"]');
+            if (!resendBtn) return;
+
+            if (isResetCodeOnCooldown()) {
+                const secondsRemaining = getSecondsUntilCanResend();
+                resendBtn.disabled = true;
+                resendBtn.innerHTML = `<i class="bi bi-hourglass-split me-2"></i>Wait ${formatTimeRemaining(secondsRemaining)} to resend`;
+                resendBtn.style.opacity = '0.6';
+                resendBtn.style.cursor = 'not-allowed';
+
+                // Clear existing interval if any
+                if (resendCountdownInterval) clearInterval(resendCountdownInterval);
+
+                // Update countdown every second
+                resendCountdownInterval = setInterval(() => {
+                    const remaining = getSecondsUntilCanResend();
+                    if (remaining > 0) {
+                        resendBtn.innerHTML = `<i class="bi bi-hourglass-split me-2"></i>Wait ${formatTimeRemaining(remaining)} to resend`;
+                    } else {
+                        clearInterval(resendCountdownInterval);
+                        resendBtn.disabled = false;
+                        resendBtn.innerHTML = '<i class="bi bi-envelope me-2"></i>Didn\'t receive code? Send new code';
+                        resendBtn.style.opacity = '1';
+                        resendBtn.style.cursor = 'pointer';
+                        
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Ready to Resend',
+                            text: 'You can now request a new verification code.',
+                            confirmButtonColor: '#00A8E8'
+                        });
+                    }
+                }, 1000);
+            } else {
+                resendBtn.disabled = false;
+                resendBtn.innerHTML = '<i class="bi bi-envelope me-2"></i>Didn\'t receive code? Send new code';
+                resendBtn.style.opacity = '1';
+                resendBtn.style.cursor = 'pointer';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check and restore cooldown on page load
+            updateResendCodeButton();
+
+            // Handle request_new_code button click
+            const resendBtn = document.querySelector('button[name="request_new_code"]');
+            if (resendBtn) {
+                resendBtn.addEventListener('click', function(e) {
+                    if (isResetCodeOnCooldown()) {
+                        e.preventDefault();
+                        const secondsRemaining = getSecondsUntilCanResend();
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Please Wait',
+                            text: `You can send a new code in ${formatTimeRemaining(secondsRemaining)}`,
+                            confirmButtonColor: '#00A8E8'
+                        });
+                        return false;
+                    }
+                });
+            }
+
+            // Handle form submission to set cooldown
+            const form = document.querySelector('form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    const resendBtn = form.querySelector('button[name="request_new_code"]');
+                    if (resendBtn && e.submitter === resendBtn) {
+                        // Set cooldown when resending code
+                        setResetCodeCooldownTime(Date.now() + RESET_CODE_COOLDOWN_DURATION);
+                        
+                        // Show notification
+                        setTimeout(() => {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Code Sent!',
+                                text: 'A new verification code has been sent to your email. Please wait 10 minutes before requesting another code.',
+                                confirmButtonColor: '#00A8E8'
+                            });
+                            
+                            // Update button
+                            updateResendCodeButton();
+                        }, 500);
+                    }
+                });
+            }
+        });
+    </script>

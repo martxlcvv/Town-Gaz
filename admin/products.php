@@ -23,51 +23,109 @@ function verifyAdminPinProduct($pin) {
     global $conn;
     
     $user_id = $_SESSION['user_id'];
-    error_log('verifyAdminPinProduct called: user_id=' . $user_id . ', pin length=' . strlen($pin));
+    error_log('[VERIFY_PIN] ===== VERIFICATION START =====');
+    error_log('[VERIFY_PIN] Called - user_id=' . $user_id . ', pin_length=' . strlen($pin) . ', is_numeric=' . (is_numeric($pin) ? 'YES' : 'NO'));
+    error_log('[VERIFY_PIN] PIN value (first 3 + last 3): ' . substr($pin, 0, 3) . '***' . substr($pin, -3));
     
     // Validate PIN format first
     if (!is_numeric($pin) || strlen($pin) !== 6) {
-        error_log('PIN format invalid: not numeric or wrong length');
+        error_log('[VERIFY_PIN] ✗ PIN format INVALID - not numeric or wrong length');
+        error_log('[VERIFY_PIN] ===== VERIFICATION END (FAILED) =====');
         return false;
     }
     
-    $sql = "SELECT pin_hash FROM admin_pins WHERE user_id = ?";
-    $stmt = mysqli_prepare($conn, $sql);
+    error_log('[VERIFY_PIN] ✓ PIN format valid (numeric, 6 digits)');
     
-    if (!$stmt) {
-        error_log('Prepare failed: ' . mysqli_error($conn));
-        return false;
+    // METHOD 1: Check admin_pins table (preferred - hashed PINs)
+    error_log('[VERIFY_PIN] [METHOD 1] Checking admin_pins table...');
+    $admin_pin_sql = "SELECT pin_hash FROM admin_pins WHERE user_id = ?";
+    $admin_stmt = mysqli_prepare($conn, $admin_pin_sql);
+    
+    if (!$admin_stmt) {
+        error_log('[VERIFY_PIN] [METHOD 1] ✗ Prepare failed: ' . mysqli_error($conn));
+    } else {
+        error_log('[VERIFY_PIN] [METHOD 1] ✓ Prepare successful');
+        mysqli_stmt_bind_param($admin_stmt, "i", $user_id);
+        
+        if (!mysqli_stmt_execute($admin_stmt)) {
+            error_log('[VERIFY_PIN] [METHOD 1] ✗ Execute failed: ' . mysqli_stmt_error($admin_stmt));
+        } else {
+            error_log('[VERIFY_PIN] [METHOD 1] ✓ Execute successful');
+            $admin_result = mysqli_stmt_get_result($admin_stmt);
+            $admin_data = mysqli_fetch_assoc($admin_result);
+            mysqli_stmt_close($admin_stmt);
+            
+            if ($admin_data) {
+                $pin_hash = $admin_data['pin_hash'];
+                error_log('[VERIFY_PIN] [METHOD 1] ✓ Record found, hash=' . substr($pin_hash, 0, 25) . '...');
+                error_log('[VERIFY_PIN] [METHOD 1] Attempting password_verify');
+                $verify_result = password_verify($pin, $pin_hash);
+                error_log('[VERIFY_PIN] [METHOD 1] password_verify result: ' . ($verify_result ? '✓ TRUE' : '✗ FALSE'));
+                
+                if ($verify_result) {
+                    error_log('[VERIFY_PIN] ===== VERIFICATION SUCCESS (METHOD 1) =====');
+                    return true;
+                }
+            } else {
+                error_log('[VERIFY_PIN] [METHOD 1] ✗ No record for user_id=' . $user_id);
+            }
+        }
     }
     
-    mysqli_stmt_bind_param($stmt, "i", $user_id);
+    // METHOD 2: Fallback - Check users table pin column
+    error_log('[VERIFY_PIN] [METHOD 2] Checking users.pin column (fallback)...');
+    $user_pin_sql = "SELECT pin FROM users WHERE user_id = ?";
+    $user_stmt = mysqli_prepare($conn, $user_pin_sql);
     
-    if (!mysqli_stmt_execute($stmt)) {
-        error_log('Execute failed: ' . mysqli_stmt_error($stmt));
-        return false;
+    if (!$user_stmt) {
+        error_log('[VERIFY_PIN] [METHOD 2] ✗ Prepare failed: ' . mysqli_error($conn));
+    } else {
+        error_log('[VERIFY_PIN] [METHOD 2] ✓ Prepare successful');
+        mysqli_stmt_bind_param($user_stmt, "i", $user_id);
+        
+        if (!mysqli_stmt_execute($user_stmt)) {
+            error_log('[VERIFY_PIN] [METHOD 2] ✗ Execute failed: ' . mysqli_stmt_error($user_stmt));
+        } else {
+            error_log('[VERIFY_PIN] [METHOD 2] ✓ Execute successful');
+            $user_result = mysqli_stmt_get_result($user_stmt);
+            $user_data = mysqli_fetch_assoc($user_result);
+            mysqli_stmt_close($user_stmt);
+            
+            if ($user_data) {
+                $pin_value = $user_data['pin'];
+                error_log('[VERIFY_PIN] [METHOD 2] Record found, pin=' . (empty($pin_value) ? 'NULL/EMPTY' : '***'));
+                
+                if (!empty($pin_value)) {
+                    // Check if PIN is hashed (bcrypt format)
+                    if (substr($pin_value, 0, 4) === '$2y$') {
+                        error_log('[VERIFY_PIN] [METHOD 2] PIN format: HASHED (bcrypt)');
+                        error_log('[VERIFY_PIN] [METHOD 2] Attempting password_verify');
+                        $verify_result = password_verify($pin, $pin_value);
+                    } else {
+                        // Plain text PIN
+                        error_log('[VERIFY_PIN] [METHOD 2] PIN format: PLAIN TEXT');
+                        error_log('[VERIFY_PIN] [METHOD 2] Attempting direct comparison');
+                        $verify_result = ($pin === $pin_value);
+                    }
+                    
+                    error_log('[VERIFY_PIN] [METHOD 2] Verification result: ' . ($verify_result ? '✓ TRUE' : '✗ FALSE'));
+                    
+                    if ($verify_result) {
+                        error_log('[VERIFY_PIN] ===== VERIFICATION SUCCESS (METHOD 2) =====');
+                        return true;
+                    }
+                } else {
+                    error_log('[VERIFY_PIN] [METHOD 2] PIN is NULL/EMPTY');
+                }
+            } else {
+                error_log('[VERIFY_PIN] [METHOD 2] ✗ No record for user_id=' . $user_id);
+            }
+        }
     }
     
-    $result = mysqli_stmt_get_result($stmt);
-    $data = mysqli_fetch_assoc($result);
-    mysqli_stmt_close($stmt);
-    
-    if (!$data) {
-        error_log('No PIN record found for user_id: ' . $user_id);
-        return false;
-    }
-    
-    $pin_hash = $data['pin_hash'];
-    error_log('PIN hash found, attempting verification');
-    
-    // Use password_verify with explicit hash
-    $verify_result = password_verify($pin, $pin_hash);
-    error_log('password_verify result: ' . ($verify_result ? 'TRUE' : 'FALSE'));
-    error_log('Hash algorithm check: ' . password_algos()[0]);
-    
-    if (!$verify_result) {
-        error_log('PIN verification failed for user: ' . $user_id);
-    }
-    
-    return $verify_result;
+    error_log('[VERIFY_PIN] ✗✗✗ FINAL RESULT - ALL METHODS FAILED for user_id=' . $user_id);
+    error_log('[VERIFY_PIN] ===== VERIFICATION END (FAILED) =====');
+    return false;
 }
 
 // Handle Add/Edit Product
@@ -101,24 +159,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_product'])) {
         }
         
         // Verify PIN
-        if (!verifyAdminPinProduct($_POST['product_pin'])) {
-            error_log('PIN verification failed for new product');
+        $pin_input = $_POST['product_pin'];
+        error_log('[PIN_VERIFY_BACKEND] Attempting PIN verification with pin length: ' . strlen($pin_input));
+        error_log('[PIN_VERIFY_BACKEND] User ID: ' . $_SESSION['user_id']);
+        error_log('[PIN_VERIFY_BACKEND] PIN Input (first 3 chars): ' . substr($pin_input, 0, 3) . '***');
+        
+        if (!verifyAdminPinProduct($pin_input)) {
+            error_log('[PIN_VERIFY_BACKEND] PIN verification failed for new product. Input PIN length: ' . strlen($pin_input) . ', user_id: ' . $_SESSION['user_id']);
             ob_clean();
             http_response_code(400);
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Invalid PIN']);
+            echo json_encode(['success' => false, 'message' => 'Invalid PIN. Please check your PIN and try again. (If you forget your PIN, contact the administrator)']);
             exit;
         }
         
-        error_log('PIN verified for new product');
+        error_log('[PIN_VERIFY_BACKEND] PIN verified successfully for new product, user_id: ' . $_SESSION['user_id']);
     }
     
     $product_name = clean_input($_POST['product_name']);
-    // Product code - not generating for now
-    $product_code = '';
-    
-    $size = clean_input($_POST['size']);
-    $unit = clean_input($_POST['unit']);
+    // Product code - don't include in UPDATE to avoid unique constraint issues
+    // For new products, product_code is handled separately
+    $product_code = NULL;
+
+    // Category (nullable)
+    $category_id = (isset($_POST['category_id']) && $_POST['category_id'] !== '') ? (int)$_POST['category_id'] : null;
+
+    $size = isset($_POST['size']) ? clean_input($_POST['size']) : null;
+    $unit = isset($_POST['unit']) ? clean_input($_POST['unit']) : null;
     $capital_cost = (float)$_POST['capital_cost'];
     $current_price = (float)$_POST['current_price'];
     $status = clean_input($_POST['status']);
@@ -158,12 +225,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_product'])) {
         
         $sql = "UPDATE products SET 
                 product_name = '$product_name',
-                product_code = '$product_code',
-                size = '$size',
-                unit = '$unit',
+                size = " . ($size === null ? "NULL" : "'" . mysqli_real_escape_string($conn, $size) . "'") . ",
+                unit = " . ($unit === null ? "NULL" : "'" . mysqli_real_escape_string($conn, $unit) . "'") . ",
                 capital_cost = $capital_cost,
                 current_price = $current_price,
                 status = '$status'";
+
+        // category handling
+        if ($category_id !== null) {
+            $sql .= ", category_id = $category_id";
+        } else {
+            $sql .= ", category_id = NULL";
+        }
         
         if ($image_path != '') {
             $sql .= ", image_path = '$image_path'";
@@ -195,19 +268,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_product'])) {
             }
         }
     } else {
-        $sql = "INSERT INTO products (product_name, product_code, size, unit, capital_cost, current_price, status, image_path) 
-                VALUES ('$product_name', '$product_code', '$size', '$unit', $capital_cost, $current_price, '$status', '$image_path')";
+        $sql = "INSERT INTO products (product_name, product_code, size, unit, capital_cost, current_price, status, image_path, category_id) 
+            VALUES ('" . mysqli_real_escape_string($conn, $product_name) . "', "
+            . ($product_code === null ? "NULL" : "'" . mysqli_real_escape_string($conn, $product_code) . "'") . ", "
+            . ($size === null ? "NULL" : "'" . mysqli_real_escape_string($conn, $size) . "'") . ", "
+            . ($unit === null ? "NULL" : "'" . mysqli_real_escape_string($conn, $unit) . "'") . ", $capital_cost, $current_price, '$status', '$image_path', "
+            . ($category_id !== null ? $category_id : "NULL") . ")";
         
         if (mysqli_query($conn, $sql)) {
             $new_product_id = mysqli_insert_id($conn);
             
-            // Create initial inventory record for today
-            $today = date('Y-m-d');
-            $current_user_id = $_SESSION['user_id'];
-            $inv_sql = "INSERT INTO inventory (product_id, date, opening_stock, current_stock, closing_stock, updated_by) 
-                       VALUES ($new_product_id, '$today', 0, 0, 0, $current_user_id)
-                       ON DUPLICATE KEY UPDATE date = '$today', updated_by = $current_user_id";
-            mysqli_query($conn, $inv_sql);
+           // Create initial inventory record for today
+$today = date('Y-m-d');
+$current_user_id = $_SESSION['user_id'];
+$inv_sql = "INSERT INTO inventory (product_id, date, stock_in, stock_out, updated_by) 
+           VALUES ($new_product_id, '$today', 0, 0, $current_user_id)
+           ON DUPLICATE KEY UPDATE date = '$today', updated_by = $current_user_id";
+mysqli_query($conn, $inv_sql);
             
             if (function_exists('log_audit')) {
                 log_audit($_SESSION['user_id'], 'CREATE', 'products', $new_product_id, null, 
@@ -486,6 +563,44 @@ $top_products_sql = "SELECT p.product_id,
                      ORDER BY qty_sold DESC
                      LIMIT 5";
 $top_products_result = mysqli_query($conn, $top_products_sql);
+
+// Fetch categories for product form and filters (load into array for reuse)
+$categories_sql = "SELECT category_id, name FROM categories ORDER BY name";
+$categories_result = mysqli_query($conn, $categories_sql);
+$categories = [];
+if ($categories_result) {
+    while ($c = mysqli_fetch_assoc($categories_result)) {
+        $categories[] = $c;
+    }
+}
+
+// Selected category from filter (GET)
+$selected_category = (isset($_GET['category_id']) && $_GET['category_id'] !== '') ? (int)$_GET['category_id'] : null;
+
+// Rebuild products query with optional category filter (override previous query result)
+$products_where = '';
+if ($selected_category) {
+    $products_where = "WHERE p.category_id = " . $selected_category;
+}
+
+$products_sql = "SELECT p.product_id,
+                 p.product_name,
+                 p.product_code,
+                 p.size,
+                 p.unit,
+                 p.image_path,
+                 COALESCE(p.capital_cost, 0) as capital_cost,
+                 COALESCE(p.current_price, 0) as current_price,
+                 p.status,
+                 p.created_at,
+                 COALESCE(SUM(CASE WHEN s.status = 'completed' THEN si.quantity ELSE 0 END), 0) as total_sold,
+                 COALESCE(SUM(CASE WHEN s.status = 'completed' THEN si.subtotal ELSE 0 END), 0) as total_revenue,
+                 (COALESCE(p.current_price, 0) - COALESCE(p.capital_cost, 0)) as profit_margin
+                 FROM products p
+                 LEFT JOIN sale_items si ON p.product_id = si.product_id
+                 LEFT JOIN sales s ON si.sale_id = s.sale_id\n                 " . $products_where . "\n                 GROUP BY p.product_id
+                 ORDER BY p.created_at DESC";
+$products_result = mysqli_query($conn, $products_sql);
 
 include '../includes/header.php';
 include '../includes/sidebar.php';
@@ -1345,13 +1460,22 @@ body {
             <div class="content-card">
                 <div class="card-header">
                     <h3><i class="bi bi-grid"></i> Product Catalog</h3>
-                    <div class="search-container">
-                        <i class="bi bi-search search-icon"></i>
-                        <input type="text" 
-                               id="searchInput" 
-                               class="search-input" 
-                               placeholder="Search products...">
-                    </div>
+                    <form method="GET" class="d-flex align-items-center gap-2">
+                        <div class="search-container">
+                            <i class="bi bi-search search-icon"></i>
+                            <input type="text" 
+                                   id="searchInput" 
+                                   name="q"
+                                   class="search-input" 
+                                   placeholder="Search products...">
+                        </div>
+                        <select class="form-select" name="category_id" id="filter_category" onchange="this.form.submit()" style="width:220px;">
+                            <option value="">All categories</option>
+                            <?php foreach ($categories as $cat): ?>
+                                <option value="<?php echo $cat['category_id']; ?>" <?php echo ($selected_category == $cat['category_id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($cat['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </form>
                 </div>
                 <div class="table-container">
                     <table class="products-table" id="productsTable">
@@ -1586,6 +1710,16 @@ body {
                         </div>
                         
                         <div class="col-md-6">
+                            <label class="form-label fw-semibold">Category</label>
+                            <select class="form-select" name="category_id" id="category_id">
+                                <option value="">-- Select category --</option>
+                                <?php foreach ($categories as $cat): ?>
+                                    <option value="<?php echo $cat['category_id']; ?>"><?php echo htmlspecialchars($cat['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
                             <label class="form-label fw-semibold">Size *</label>
                             <input type="text" class="form-control" name="size" 
                                    id="size" placeholder="e.g. 11, 22, 50" required>
@@ -1740,6 +1874,20 @@ function editProduct(product) {
     document.getElementById('unit').value = product.unit || 'kg';
     document.getElementById('capital_cost').value = product.capital_cost || '0';
     document.getElementById('current_price').value = product.current_price || '0';
+    // Preserve category selection when editing
+    try {
+        const categorySelect = document.getElementById('category_id');
+        if (categorySelect) {
+            // If product has a category_id, set it; otherwise clear selection
+            if (product.category_id !== undefined && product.category_id !== null && product.category_id !== '') {
+                categorySelect.value = product.category_id;
+            } else {
+                categorySelect.value = '';
+            }
+        }
+    } catch (e) {
+        console.error('Error setting category select in editProduct:', e);
+    }
     
     // Show and enable Inactive option when editing
     document.getElementById('inactiveStatusDiv').style.display = 'block';
@@ -2150,6 +2298,9 @@ async function verifyProductPin() {
     const pin = document.getElementById('productPinInput').value;
     const confirmBtn = document.getElementById('confirmProductPinBtn');
     
+    console.log('[PIN_VERIFY] PIN input value:', pin);
+    console.log('[PIN_VERIFY] PIN length:', pin.length);
+    
     if (pin.length !== 6) {
         Swal.fire({
             icon: 'warning',
@@ -2164,10 +2315,18 @@ async function verifyProductPin() {
     confirmBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Verifying...';
     
     try {
-        // Use the stored form data from the first submission
-        // Reuse all fields from the original form data and add the PIN
-        const formData = pendingProductFormData;
+        // Create a new FormData object from the pending form data
+        const formData = new FormData(document.getElementById('productForm'));
+        
+        // Add the PIN to the form data
         formData.append('product_pin', pin);
+        
+        console.log('[PIN_VERIFY] FormData contents:');
+        for (let [key, value] of formData.entries()) {
+            if (key !== 'product_image' && key !== 'session_token') {
+                console.log('[PIN_VERIFY]  ', key, '=', value);
+            }
+        }
         
         const response = await fetch('products.php', {
             method: 'POST',
@@ -2177,16 +2336,27 @@ async function verifyProductPin() {
             }
         });
         
+        console.log('[PIN_VERIFY] Response status:', response.status);
+        console.log('[PIN_VERIFY] Response OK:', response.ok);
+        
+        let responseText = await response.text();
+        console.log('[PIN_VERIFY] Response text (first 200 chars):', responseText.substring(0, 200));
+        
         if (!response.ok) {
-            throw new Error('Network response was not ok');
+            console.error('[PIN_VERIFY] HTTP error status:', response.status);
+            throw new Error(`HTTP error status: ${response.status}`);
         }
         
-        const result = await response.json().catch(err => {
-            console.error('JSON parse error:', err);
-            console.error('Response status:', response.status);
-            console.error('Response headers:', response.headers);
-            throw new Error('Invalid response from server');
-        });
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (err) {
+            console.error('[PIN_VERIFY] JSON parse error:', err);
+            console.error('[PIN_VERIFY] Response text was:', responseText);
+            throw new Error('Invalid JSON response from server: ' + responseText.substring(0, 100));
+        }
+        
+        console.log('[PIN_VERIFY] Parsed result:', result);
         
         if (result.success) {
             // PIN verified
@@ -2235,13 +2405,19 @@ async function verifyProductPin() {
             }
         }
     } catch (error) {
-        console.error('Error verifying PIN:', error);
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
+        console.error('[PIN_VERIFY_CATCH] Error caught:', error);
+        console.error('[PIN_VERIFY_CATCH] Error message:', error.message);
+        console.error('[PIN_VERIFY_CATCH] Error stack:', error.stack);
+        
+        let errorMessage = 'Error verifying PIN. Please try again.';
+        if (error.message) {
+            errorMessage = 'Error: ' + error.message;
+        }
+        
         Swal.fire({
             icon: 'error',
             title: 'Error!',
-            text: 'Error verifying PIN. Please try again.',
+            text: errorMessage,
             confirmButtonColor: '#e74c3c'
         });
         

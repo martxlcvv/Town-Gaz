@@ -26,16 +26,21 @@ function verifyAdminPin($pin) {
 
 // Get all active products with current stock
 $products_sql = "SELECT p.*, 
-                 COALESCE(i.current_stock, 0) as current_stock
+                 COALESCE(SUM(i.stock_in) - SUM(i.stock_out), 0) as current_stock
                  FROM products p
                  LEFT JOIN inventory i ON p.product_id = i.product_id AND i.date = CURDATE()
-                 WHERE p.status = 'active' 
+                 WHERE p.status = 'active'
+                 GROUP BY p.product_id
                  ORDER BY p.product_name";
 $products_result = mysqli_query($conn, $products_sql);
 
 // Get all customers for dropdown
 $customers_sql = "SELECT * FROM customers WHERE status = 'active' ORDER BY customer_name";
 $customers_result = mysqli_query($conn, $customers_sql);
+
+// Get all categories for filter
+$categories_sql = "SELECT category_id, name FROM categories ORDER BY name";
+$categories_result = mysqli_query($conn, $categories_sql);
 
 // Get active promotions
 $promos_sql = "SELECT * FROM promotions 
@@ -88,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['complete_sale'])) {
                 }
                 
                 // Check stock availability
-                $stock_check = "SELECT current_stock FROM inventory WHERE product_id = ? AND date = CURDATE()";
+                $stock_check = "SELECT COALESCE(SUM(stock_in) - SUM(stock_out), 0) as current_stock FROM inventory WHERE product_id = ? AND date = CURDATE()";
                 $stock_stmt = mysqli_prepare($conn, $stock_check);
                 mysqli_stmt_bind_param($stock_stmt, "i", $product_id);
                 mysqli_stmt_execute($stock_stmt);
@@ -199,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['complete_sale'])) {
             $item_stmt = mysqli_prepare($conn, $insert_item_sql);
             
             $update_inventory_sql = "UPDATE inventory 
-                                    SET current_stock = current_stock - ? 
+                                    SET stock_out = stock_out + ? 
                                     WHERE product_id = ? AND date = CURDATE()";
             $inv_stmt = mysqli_prepare($conn, $update_inventory_sql);
             
@@ -348,6 +353,87 @@ include '../includes/sidebar.php';
 body {
     background: var(--light);
     font-size: 0.95rem;
+}
+
+/* ============================================
+   PRODUCT SEARCH & FILTER
+   ============================================ */
+.products-filter-section {
+    padding: 12px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.search-box {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 8px 12px 8px 36px;
+    border: 1.5px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
+
+.search-box input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.08);
+}
+
+.search-box i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--primary);
+    font-size: 0.9rem;
+}
+
+.category-filter-select {
+    padding: 8px 12px;
+    border: 1.5px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 150px;
+}
+
+.category-filter-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.08);
+}
+
+.filter-badge {
+    display: inline-block;
+    background: var(--primary);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.filter-badge .clear-filter {
+    margin-left: 6px;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.filter-badge .clear-filter:hover {
+    opacity: 1;
 }
 
 /* ============================================
@@ -1497,18 +1583,50 @@ body {
             <!-- ========================================== -->
             <!-- LEFT COLUMN: PRODUCTS SECTION -->
             <!-- ========================================== -->
+            <!-- LEFT COLUMN: PRODUCTS SECTION -->
+            <!-- ========================================== -->
             <div class="col-lg-8 mb-4">
                 <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-white border-0 py-3">
+                    <!-- Header -->
+                    <div class="card-header bg-white border-0 py-3 px-3">
                         <h6 class="mb-0 fw-bold"><i class="bi bi-grid me-2"></i>Products</h6>
                     </div>
+                    
+                    <!-- Search & Filter Section -->
+                    <div class="products-filter-section">
+                        <div class="search-box">
+                            <i class="bi bi-search"></i>
+                            <input type="text" 
+                                   id="productSearch" 
+                                   class="form-control" 
+                                   placeholder="Search products..." 
+                                   onkeyup="filterProducts()">
+                        </div>
+                        <select class="category-filter-select" 
+                                id="categoryFilter" 
+                                onchange="filterProducts()">
+                            <option value="">All Categories</option>
+                            <?php 
+                            mysqli_data_seek($categories_result, 0);
+                            while ($category = mysqli_fetch_assoc($categories_result)): 
+                            ?>
+                                <option value="<?php echo $category['category_id']; ?>">
+                                    <?php echo htmlspecialchars($category['name']); ?>
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    
+                    <!-- Products Grid -->
                     <div class="card-body" style="max-height: 600px; overflow-y: auto;">
-                        <div class="row g-3">
+                        <div class="row g-3" id="productsGrid">
                             <?php 
                             mysqli_data_seek($products_result, 0);
                             while ($product = mysqli_fetch_assoc($products_result)): 
                             ?>
-                                <div class="col-md-6 col-xl-4">
+                                <div class="col-md-6 col-xl-4 product-item" 
+                                     data-category="<?php echo $product['category_id']; ?>"
+                                     data-name="<?php echo strtolower(htmlspecialchars($product['product_name'])); ?>">
                                     <div class="card product-card h-100 <?php echo $product['current_stock'] < 1 ? 'out-of-stock' : ''; ?>" 
                                          data-product-id="<?php echo $product['product_id']; ?>"
                                          data-current-stock="<?php echo $product['current_stock']; ?>"
@@ -1558,6 +1676,9 @@ body {
                     </div>
                     
                     <form method="POST" id="posForm">
+                        <!-- CSRF Token -->
+                        <?php echo output_token_field(); ?>
+                        
                         <!-- Customer, Promo, Delivery Options -->
                         <div class="compact-form">
                             <div class="mb-2">
@@ -1842,6 +1963,44 @@ function handleProductClick(element) {
     }
 }
 
+// Filter products by search and category
+function filterProducts() {
+    const searchTerm = document.getElementById('productSearch').value.toLowerCase().trim();
+    const selectedCategory = document.getElementById('categoryFilter').value;
+    const productItems = document.querySelectorAll('.product-item');
+    let visibleCount = 0;
+
+    productItems.forEach(item => {
+        const category = item.getAttribute('data-category');
+        const name = item.getAttribute('data-name');
+        
+        const matchesSearch = name.includes(searchTerm);
+        const matchesCategory = !selectedCategory || category === selectedCategory;
+        
+        if (matchesSearch && matchesCategory) {
+            item.style.display = '';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+
+    // Show message if no products match
+    if (visibleCount === 0) {
+        const grid = document.getElementById('productsGrid');
+        if (!document.getElementById('noProductsMessage')) {
+            const message = document.createElement('div');
+            message.id = 'noProductsMessage';
+            message.style.cssText = 'grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: #adb5bd;';
+            message.innerHTML = '<i class="bi bi-search" style="font-size: 3rem; opacity: 0.5; display: block; margin-bottom: 10px;"></i><p>No products found</p>';
+            grid.appendChild(message);
+        }
+    } else {
+        const message = document.getElementById('noProductsMessage');
+        if (message) message.remove();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
     pinModal = new bootstrap.Modal(document.getElementById('pinModal'));
@@ -1960,7 +2119,22 @@ async function verifyPin() {
             body: 'pin=' + encodeURIComponent(pin)
         });
         
-        const result = await response.json();
+        console.log('PIN API Response Status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const textResponse = await response.text();
+        console.log('PIN API Raw Response:', textResponse);
+        
+        let result;
+        try {
+            result = JSON.parse(textResponse);
+        } catch (parseError) {
+            console.error('JSON Parse Error:', parseError);
+            throw new Error('Invalid response format from server');
+        }
         
         if (result.success) {
             // Reset attempts on success
@@ -2012,8 +2186,10 @@ async function verifyPin() {
             }
         }
     } catch (error) {
-        console.error('Error:', error);
-        if (pinError) pinError.textContent = 'Connection error. Please try again.';
+        console.error('PIN Verification Error:', error);
+        if (pinError) {
+            pinError.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>Error: ${error.message}`;
+        }
     } finally {
         confirmBtn.disabled = false;
         confirmBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Verify';
@@ -2900,7 +3076,28 @@ function refreshProductStock(productId, newStock) {
         card.setAttribute('data-current-stock', newStock);
     });
 }
+
+// Show sweet alert on successful login
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('login') === 'success') {
+        Swal.fire({
+            icon: 'success',
+            title: 'Welcome back!',
+            text: 'You have been successfully logged in.',
+            confirmButtonColor: '#2d5016',
+            timer: 2500,
+            showConfirmButton: false
+        }).then(() => {
+            // Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        });
+        
+        // Reset login attempts on successful login
+        localStorage.removeItem('login_attempts');
+        localStorage.removeItem('login_lockout_time');
+    }
+});
 </script>
 
 <?php include '../includes/footer.php'; ?>
- 

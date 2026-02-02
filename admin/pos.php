@@ -26,10 +26,11 @@ function verifyAdminPin($pin) {
 
 // Get all active products with current stock
 $products_sql = "SELECT p.*, 
-                 COALESCE(i.current_stock, 0) as current_stock
+                 COALESCE(SUM(i.stock_in) - SUM(i.stock_out), 0) as current_stock
                  FROM products p
                  LEFT JOIN inventory i ON p.product_id = i.product_id AND i.date = CURDATE()
-                 WHERE p.status = 'active' 
+                 WHERE p.status = 'active'
+                 GROUP BY p.product_id
                  ORDER BY p.product_name";
 $products_result = mysqli_query($conn, $products_sql);
 
@@ -37,13 +38,9 @@ $products_result = mysqli_query($conn, $products_sql);
 $customers_sql = "SELECT * FROM customers WHERE status = 'active' ORDER BY customer_name";
 $customers_result = mysqli_query($conn, $customers_sql);
 
-// Get active promotions
-$promos_sql = "SELECT * FROM promotions 
-               WHERE status = 'active' 
-               AND start_date <= NOW() 
-               AND end_date >= NOW()
-               ORDER BY promo_name";
-$promos_result = mysqli_query($conn, $promos_sql);
+// Get all categories for filter
+$categories_sql = "SELECT category_id, name FROM categories ORDER BY name";
+$categories_result = mysqli_query($conn, $categories_sql);
 
 // Handle sale submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['complete_sale'])) {
@@ -61,11 +58,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['complete_sale'])) {
         $payment_method = clean_input($_POST['payment_method']);
         $cart_items = json_decode($_POST['cart_data'], true);
         $delivery_option = isset($_POST['delivery_option']) ? $_POST['delivery_option'] : 'pickup';
-        
-        // Promo code
-        $promo_code = isset($_POST['promo_code']) ? clean_input($_POST['promo_code']) : '';
-        $promo_discount = 0;
-        $promo_id = NULL;
         
         // Payment details
         $amount_paid = floatval($_POST['amount_paid']);
@@ -88,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['complete_sale'])) {
                 }
                 
                 // Check stock availability
-                $stock_check = "SELECT current_stock FROM inventory WHERE product_id = ? AND date = CURDATE()";
+                $stock_check = "SELECT COALESCE(SUM(stock_in) - SUM(stock_out), 0) as current_stock FROM inventory WHERE product_id = ? AND date = CURDATE()";
                 $stock_stmt = mysqli_prepare($conn, $stock_check);
                 mysqli_stmt_bind_param($stock_stmt, "i", $product_id);
                 mysqli_stmt_execute($stock_stmt);
@@ -129,40 +121,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['complete_sale'])) {
                 $cart_items[array_search($item, $cart_items)] = $item;
             }
 
-            // Apply promo code if provided
-            if (!empty($promo_code)) {
-                $promo_sql = "SELECT * FROM promotions 
-                             WHERE promo_code = ? 
-                             AND status = 'active' 
-                             AND DATE(start_date) <= CURDATE() 
-                             AND DATE(end_date) >= CURDATE()";
-                $promo_stmt = mysqli_prepare($conn, $promo_sql);
-                mysqli_stmt_bind_param($promo_stmt, "s", $promo_code);
-                mysqli_stmt_execute($promo_stmt);
-                $promo_result = mysqli_stmt_get_result($promo_stmt);
-                $promo = mysqli_fetch_assoc($promo_result);
-                
-                if ($promo) {
-                    $promo_id = $promo['promo_id'];
-                    
-                    if ($total_amount >= $promo['min_purchase_amount']) {
-                        if ($promo['discount_type'] == 'percentage') {
-                            $promo_discount = ($total_amount * $promo['discount_value']) / 100;
-                            if ($promo['max_discount_amount'] > 0) {
-                                $promo_discount = min($promo_discount, $promo['max_discount_amount']);
-                            }
-                        } else {
-                            $promo_discount = $promo['discount_value'];
-                        }
-                        
-                        $promo_discount = min($promo_discount, $total_amount);
-                    }
-                }
-            }
-            
-            // Subtract discount from total
-            $final_amount = $total_amount - $promo_discount;
-            $total_profit = $total_profit - $promo_discount;
+            // Final calculation
+            $final_amount = $total_amount;
+            $total_profit = $total_profit;
             
             // Validate payment
             if ($amount_paid < $final_amount) {
@@ -184,22 +145,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['complete_sale'])) {
             
             $sale_id = mysqli_insert_id($conn);
             
-            // Save promo usage
-            if ($promo_id && $promo_discount > 0) {
-                $promo_usage_sql = "INSERT INTO sale_promotions (sale_id, promo_id, discount_amount) 
-                                   VALUES (?, ?, ?)";
-                $promo_stmt = mysqli_prepare($conn, $promo_usage_sql);
-                mysqli_stmt_bind_param($promo_stmt, "iid", $sale_id, $promo_id, $promo_discount);
-                mysqli_stmt_execute($promo_stmt);
-            }
-            
             $insert_item_sql = "INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, 
                                                        unit_capital, subtotal, subtotal_capital, subtotal_profit) 
                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             $item_stmt = mysqli_prepare($conn, $insert_item_sql);
             
             $update_inventory_sql = "UPDATE inventory 
-                                    SET current_stock = current_stock - ? 
+                                    SET stock_out = stock_out + ? 
                                     WHERE product_id = ? AND date = CURDATE()";
             $inv_stmt = mysqli_prepare($conn, $update_inventory_sql);
             
@@ -253,7 +205,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['complete_sale'])) {
             $_SESSION['success_message'] = "Sale completed successfully! Invoice: $invoice_number";
             $_SESSION['print_invoice'] = $sale_id;
             $_SESSION['change_amount'] = $amount_paid - $final_amount;
-            $_SESSION['promo_discount'] = $promo_discount;
             header('Location: pos.php?print=' . $sale_id);
             exit();
             
@@ -269,9 +220,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['complete_sale'])) {
 }
 
 // Get receipt data for printing
-$receipt_data = null;
-$change_amount = 0;
-$promo_discount = 0;
 if (isset($_GET['print'])) {
     $sale_id = intval($_GET['print']);
     $receipt_sql = "SELECT s.*, c.customer_name, c.address, c.contact, u.full_name as cashier,
@@ -348,6 +296,87 @@ include '../includes/sidebar.php';
 body {
     background: var(--light);
     font-size: 0.95rem;
+}
+
+/* ============================================
+   PRODUCT SEARCH & FILTER
+   ============================================ */
+.products-filter-section {
+    padding: 12px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.search-box {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 8px 12px 8px 36px;
+    border: 1.5px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
+
+.search-box input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.08);
+}
+
+.search-box i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--primary);
+    font-size: 0.9rem;
+}
+
+.category-filter-select {
+    padding: 8px 12px;
+    border: 1.5px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 150px;
+}
+
+.category-filter-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.08);
+}
+
+.filter-badge {
+    display: inline-block;
+    background: var(--primary);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.filter-badge .clear-filter {
+    margin-left: 6px;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.filter-badge .clear-filter:hover {
+    opacity: 1;
 }
 
 /* ============================================
@@ -1497,18 +1526,50 @@ body {
             <!-- ========================================== -->
             <!-- LEFT COLUMN: PRODUCTS SECTION -->
             <!-- ========================================== -->
+            <!-- LEFT COLUMN: PRODUCTS SECTION -->
+            <!-- ========================================== -->
             <div class="col-lg-8 mb-4">
                 <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-white border-0 py-3">
+                    <!-- Header -->
+                    <div class="card-header bg-white border-0 py-3 px-3">
                         <h6 class="mb-0 fw-bold"><i class="bi bi-grid me-2"></i>Products</h6>
                     </div>
+                    
+                    <!-- Search & Filter Section -->
+                    <div class="products-filter-section">
+                        <div class="search-box">
+                            <i class="bi bi-search"></i>
+                            <input type="text" 
+                                   id="productSearch" 
+                                   class="form-control" 
+                                   placeholder="Search products..." 
+                                   onkeyup="filterProducts()">
+                        </div>
+                        <select class="category-filter-select" 
+                                id="categoryFilter" 
+                                onchange="filterProducts()">
+                            <option value="">All Categories</option>
+                            <?php 
+                            mysqli_data_seek($categories_result, 0);
+                            while ($category = mysqli_fetch_assoc($categories_result)): 
+                            ?>
+                                <option value="<?php echo $category['category_id']; ?>">
+                                    <?php echo htmlspecialchars($category['name']); ?>
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+                    
+                    <!-- Products Grid -->
                     <div class="card-body" style="max-height: 600px; overflow-y: auto;">
-                        <div class="row g-3">
+                        <div class="row g-3" id="productsGrid">
                             <?php 
                             mysqli_data_seek($products_result, 0);
                             while ($product = mysqli_fetch_assoc($products_result)): 
                             ?>
-                                <div class="col-md-6 col-xl-4">
+                                <div class="col-md-6 col-xl-4 product-item" 
+                                     data-category="<?php echo $product['category_id']; ?>"
+                                     data-name="<?php echo strtolower(htmlspecialchars($product['product_name'])); ?>">
                                     <div class="card product-card h-100 <?php echo $product['current_stock'] < 1 ? 'out-of-stock' : ''; ?>" 
                                          data-product-id="<?php echo $product['product_id']; ?>"
                                          data-current-stock="<?php echo $product['current_stock']; ?>"
@@ -1558,6 +1619,9 @@ body {
                     </div>
                     
                     <form method="POST" id="posForm">
+                        <!-- CSRF Token -->
+                        <?php echo output_token_field(); ?>
+                        
                         <!-- Customer, Promo, Delivery Options -->
                         <div class="compact-form">
                             <div class="mb-2">
@@ -1587,19 +1651,6 @@ body {
                                         <small id="customerAddress" class="text-muted" style="display: block; line-height: 1.3;"></small>
                                     </div>
                                 </div>
-                            </div>
-                            
-                            <div class="mb-2">
-                                <label class="form-label">
-                                    <i class="bi bi-tag-fill"></i> Promo Code
-                                </label>
-                                <div class="promo-input-group">
-                                    <input type="text" class="form-control" id="promoCode" placeholder="Enter code">
-                                    <button class="btn btn-primary" type="button" onclick="applyPromo()">
-                                        <i class="bi bi-check"></i>
-                                    </button>
-                                </div>
-                                <div id="promoMessage"></div>
                             </div>
                             
                             <div class="mb-0">
@@ -1842,6 +1893,44 @@ function handleProductClick(element) {
     }
 }
 
+// Filter products by search and category
+function filterProducts() {
+    const searchTerm = document.getElementById('productSearch').value.toLowerCase().trim();
+    const selectedCategory = document.getElementById('categoryFilter').value;
+    const productItems = document.querySelectorAll('.product-item');
+    let visibleCount = 0;
+
+    productItems.forEach(item => {
+        const category = item.getAttribute('data-category');
+        const name = item.getAttribute('data-name');
+        
+        const matchesSearch = name.includes(searchTerm);
+        const matchesCategory = !selectedCategory || category === selectedCategory;
+        
+        if (matchesSearch && matchesCategory) {
+            item.style.display = '';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+
+    // Show message if no products match
+    if (visibleCount === 0) {
+        const grid = document.getElementById('productsGrid');
+        if (!document.getElementById('noProductsMessage')) {
+            const message = document.createElement('div');
+            message.id = 'noProductsMessage';
+            message.style.cssText = 'grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: #adb5bd;';
+            message.innerHTML = '<i class="bi bi-search" style="font-size: 3rem; opacity: 0.5; display: block; margin-bottom: 10px;"></i><p>No products found</p>';
+            grid.appendChild(message);
+        }
+    } else {
+        const message = document.getElementById('noProductsMessage');
+        if (message) message.remove();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
     pinModal = new bootstrap.Modal(document.getElementById('pinModal'));
@@ -1960,7 +2049,22 @@ async function verifyPin() {
             body: 'pin=' + encodeURIComponent(pin)
         });
         
-        const result = await response.json();
+        console.log('PIN API Response Status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const textResponse = await response.text();
+        console.log('PIN API Raw Response:', textResponse);
+        
+        let result;
+        try {
+            result = JSON.parse(textResponse);
+        } catch (parseError) {
+            console.error('JSON Parse Error:', parseError);
+            throw new Error('Invalid response format from server');
+        }
         
         if (result.success) {
             // Reset attempts on success
@@ -2012,8 +2116,10 @@ async function verifyPin() {
             }
         }
     } catch (error) {
-        console.error('Error:', error);
-        if (pinError) pinError.textContent = 'Connection error. Please try again.';
+        console.error('PIN Verification Error:', error);
+        if (pinError) {
+            pinError.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>Error: ${error.message}`;
+        }
     } finally {
         confirmBtn.disabled = false;
         confirmBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Verify';
@@ -2090,47 +2196,84 @@ function executePendingAction() {
 }
 
 function displayCustomerInfo() {
-    const customerId = document.getElementById('customer_id').value;
+    const customerId = document.getElementById('customer_id')?.value || '';
     const customerInfoBox = document.getElementById('customerInfoBox');
     const customerNameEl = document.getElementById('customerName');
     const customerContactEl = document.getElementById('customerContact');
     const customerAddressEl = document.getElementById('customerAddress');
     
+    // Hide if no customer selected
     if (!customerId) {
+        console.log('ℹ️ No customer selected, hiding customer info box');
         if (customerInfoBox) customerInfoBox.style.display = 'none';
         return;
     }
     
     const customerSelect = document.getElementById('customer_id');
-    const selectedOption = customerSelect.options[customerSelect.selectedIndex];
-    const customerName = selectedOption.text;
+    const selectedOption = customerSelect?.options[customerSelect.selectedIndex];
+    const customerName = selectedOption?.text || 'Customer';
+    
+    console.log('📞 Fetching customer info for ID:', customerId);
+    console.log('   Customer name from dropdown:', customerName);
     
     fetch(`../api/get-customer-info.php?id=${encodeURIComponent(customerId)}`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`API returned status ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('📊 API Response received:', JSON.stringify(data));
+            
             if (data.success && data.customer) {
                 const customer = data.customer;
+                console.log('✅ Customer data extracted:', {
+                    name: customer.customer_name,
+                    contact: customer.contact,
+                    address: customer.address
+                });
                 
-                if (customerNameEl) customerNameEl.textContent = customer.customer_name || customerName;
+                // Update customer name
+                if (customerNameEl) {
+                    customerNameEl.textContent = customer.customer_name || customerName;
+                    console.log('📝 Updated name to:', customerNameEl.textContent);
+                }
+                
+                // Update contact with proper escaping
                 if (customerContactEl) {
-                    if (customer.contact) {
-                        customerContactEl.innerHTML = `<i class="bi bi-telephone me-1"></i>${escapeHtml(customer.contact)}`;
+                    if (customer.contact && String(customer.contact).trim()) {
+                        const contactHtml = `<i class="bi bi-telephone me-1"></i><span>${escapeHtml(String(customer.contact).trim())}</span>`;
+                        customerContactEl.innerHTML = contactHtml;
+                        console.log('📱 Updated contact with HTML:', contactHtml);
                     } else {
                         customerContactEl.innerHTML = '';
-                    }
-                }
-                if (customerAddressEl) {
-                    if (customer.address) {
-                        customerAddressEl.innerHTML = `<i class="bi bi-geo-alt me-1"></i>${escapeHtml(customer.address)}`;
-                    } else {
-                        customerAddressEl.innerHTML = '';
+                        console.log('ℹ️ No contact information available');
                     }
                 }
                 
+                // Update address with proper escaping
+                if (customerAddressEl) {
+                    if (customer.address && String(customer.address).trim()) {
+                        const addressHtml = `<i class="bi bi-geo-alt me-1"></i><span>${escapeHtml(String(customer.address).trim())}</span>`;
+                        customerAddressEl.innerHTML = addressHtml;
+                        console.log('📍 Updated address with HTML:', addressHtml);
+                    } else {
+                        customerAddressEl.innerHTML = '';
+                        console.log('ℹ️ No address information available');
+                    }
+                }
+                
+                // Show the box
                 if (customerInfoBox) {
                     customerInfoBox.style.display = 'block';
+                    console.log('✅ Customer info box is now visible');
                 }
             } else {
+                console.warn('⚠️ API returned success=false or no customer data');
+                console.log('   Response data:', data);
+                
+                // Show name at least
                 if (customerNameEl) customerNameEl.textContent = customerName;
                 if (customerContactEl) customerContactEl.innerHTML = '';
                 if (customerAddressEl) customerAddressEl.innerHTML = '';
@@ -2138,7 +2281,10 @@ function displayCustomerInfo() {
             }
         })
         .catch(error => {
-            console.error('Error fetching customer info:', error);
+            console.error('❌ Error fetching customer info:', error.message || error);
+            console.error('   Full error:', error);
+            
+            // Fallback: show at least the name
             if (customerNameEl) customerNameEl.textContent = customerName;
             if (customerContactEl) customerContactEl.innerHTML = '';
             if (customerAddressEl) customerAddressEl.innerHTML = '';
@@ -2902,4 +3048,4 @@ function refreshProductStock(productId, newStock) {
 }
 </script>
 
-<?php include '../includes/footer.php'; ?>
+<?php include '../includes/footer.php'; ?>s
