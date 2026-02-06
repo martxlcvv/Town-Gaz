@@ -438,7 +438,7 @@ include '../includes/sidebar.php';
 <!-- Add Customer Modal -->
 <div class="modal fade" id="addCustomerModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
+        <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
                     <i class="bi bi-person-plus-fill me-2"></i>Add New Customer
@@ -497,7 +497,7 @@ include '../includes/sidebar.php';
 <!-- Edit Customer Modal -->
 <div class="modal fade" id="editCustomerModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
+        <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
                     <i class="bi bi-pencil-fill me-2"></i>Edit Customer
@@ -555,21 +555,21 @@ include '../includes/sidebar.php';
     </div>
 </div>
 
-<!-- View Customer Modal -->
+<!-- View Customer Modal - COMPACT & CLEAN -->
 <div class="modal fade" id="viewCustomerModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-xl">
-                <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-gradient-to-r from-blue-600 to-blue-700" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 0.75rem 1rem;">
+                <h5 class="modal-title text-white mb-0" style="font-size: 1rem; font-weight: 600;">
                     <i class="bi bi-person-circle me-2"></i>Customer Details
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-4" id="customerDetails">
+            <div class="modal-body" id="customerDetails" style="padding: 1rem;">
                 <!-- Customer details will be loaded here -->
             </div>
-            <div class="modal-footer border-0 bg-light">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <div class="modal-footer" style="padding: 0.6rem 1rem; background: #f8f9fa;">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
                     <i class="bi bi-x-circle me-1"></i>Close
                 </button>
             </div>
@@ -603,33 +603,32 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Welcome Header */
+/* Welcome Header - compact */
 .welcome-header {
     background: linear-gradient(135deg, #1a4d5c 0%, #0f3543 100%);
-    border-radius: 12px;
-    padding: 2rem 1.5rem 1.5rem 1.5rem;
-    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 6px 30px rgba(26, 77, 92, 0.25);
+    box-shadow: 0 4px 15px rgba(26, 77, 92, 0.2);
     color: white;
-    backdrop-filter: blur(10px);
 }
 
 .welcome-header h1 {
-    font-size: 2.2rem;
-    font-weight: 800;
-    margin-bottom: 0.5rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
     color: #ffffff;
-    letter-spacing: 0.5px;
-    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+    letter-spacing: 0.3px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .welcome-header p {
     color: rgba(255, 255, 255, 0.95);
     margin-bottom: 0;
-    font-size: 1rem;
+    font-size: 0.9rem;
     letter-spacing: 0.3px;
 }
 
@@ -733,20 +732,6 @@ body {
     background: var(--primary-blue);
     color: white;
     box-shadow: var(--shadow-light);
-}
-
-.customer-avatar-large {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2.5rem;
-    font-weight: 700;
-    background: var(--primary-blue);
-    color: white;
-    box-shadow: var(--shadow-medium);
 }
 
 /* Table Styles */
@@ -987,6 +972,107 @@ body {
     padding: 1.25rem;
 }
 
+/* COMPACT VIEW CUSTOMER MODAL */
+#viewCustomerModal .modal-dialog {
+    max-width: 600px;
+}
+
+#viewCustomerModal .customer-info-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+}
+
+#viewCustomerModal .info-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 0.75rem;
+    border-left: 3px solid #3b82f6;
+}
+
+#viewCustomerModal .info-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+}
+
+#viewCustomerModal .info-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+#viewCustomerModal .stats-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+#viewCustomerModal .stat-box {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    border-radius: 8px;
+    padding: 0.75rem;
+    text-align: center;
+    color: white;
+}
+
+#viewCustomerModal .stat-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+#viewCustomerModal .stat-label {
+    font-size: 0.75rem;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+#viewCustomerModal .customer-header {
+    text-align: center;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e9ecef;
+    margin-bottom: 1rem;
+}
+
+#viewCustomerModal .customer-avatar-large {
+    width: 70px;
+    height: 70px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: white;
+    margin: 0 auto 0.75rem;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+#viewCustomerModal .customer-name {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 0.25rem;
+}
+
+#viewCustomerModal .customer-id {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-bottom: 0.5rem;
+}
+
+#viewCustomerModal .badge {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .welcome-header h1 {
@@ -1013,6 +1099,15 @@ body {
     .btn-group .btn {
         width: 100%;
         margin-bottom: 0.25rem;
+    }
+    
+    #viewCustomerModal .modal-dialog {
+        max-width: 95%;
+        margin: 0.5rem;
+    }
+    
+    #viewCustomerModal .stats-row {
+        grid-template-columns: 1fr;
     }
 }
 </style>
@@ -1109,7 +1204,7 @@ function deleteCustomerConfirm(customerId) {
 function viewCustomer(customer) {
     const lastPurchase = customer.last_purchase ? new Date(customer.last_purchase).toLocaleDateString('en-US', {
         year: 'numeric',
-        month: 'long',
+        month: 'short',
         day: 'numeric'
     }) : 'No purchases yet';
     
@@ -1117,74 +1212,65 @@ function viewCustomer(customer) {
         ? (parseFloat(customer.total_spent) / customer.total_orders).toFixed(2)
         : '0.00';
     
+    const memberSince = new Date(customer.created_at).toLocaleDateString('en-US', {
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric'
+    });
+    
     const html = `
-        <div class="row g-3">
-            <div class="col-lg-4">
-                <div class="customer-detail-card">
-                    <div class="customer-avatar-large mx-auto mb-3">
-                        ${customer.customer_name.substring(0, 2).toUpperCase()}
-                    </div>
-                    <h5 class="fw-bold text-center mb-1">${customer.customer_name}</h5>
-                    <p class="text-muted text-center mb-3">ID: #${customer.customer_id}</p>
-                    <span class="badge bg-${customer.status == 'active' ? 'success' : 'danger'} px-3 py-2 d-block text-center mb-3">
-                        ${customer.status.toUpperCase()}
-                    </span>
-                    <div class="detail-section">
-                        <div class="detail-item mb-3">
-                            <small class="text-muted d-block mb-1">Type</small>
-                            <span class="badge bg-${customer.customer_type == 'commercial' ? 'primary' : 'secondary'} px-2 py-1">
-                                ${customer.customer_type.toUpperCase()}
-                            </span>
-                        </div>
-                        <div class="detail-item mb-3">
-                            <small class="text-muted d-block mb-1">Contact</small>
-                            <strong>${customer.contact}</strong>
-                        </div>
-                        <div class="detail-item">
-                            <small class="text-muted d-block mb-1">Address</small>
-                            <strong>${customer.address}</strong>
-                        </div>
-                    </div>
-                </div>
+        <div class="customer-header">
+            <div class="customer-avatar-large">
+                ${customer.customer_name.substring(0, 2).toUpperCase()}
+            </div>
+            <div class="customer-name">${customer.customer_name}</div>
+            <div class="customer-id">Customer ID: #${customer.customer_id}</div>
+            <span class="badge bg-${customer.status == 'active' ? 'success' : 'danger'}">
+                <i class="bi bi-${customer.status == 'active' ? 'check-circle-fill' : 'x-circle-fill'}"></i>
+                ${customer.status.toUpperCase()}
+            </span>
+            <span class="badge bg-${customer.customer_type == 'commercial' ? 'primary' : 'secondary'} ms-2">
+                <i class="bi bi-${customer.customer_type == 'commercial' ? 'building' : 'person'}"></i>
+                ${customer.customer_type.toUpperCase()}
+            </span>
+        </div>
+        
+        <div class="customer-info-grid">
+            <div class="info-card">
+                <div class="info-label"><i class="bi bi-telephone-fill me-1"></i>Contact Number</div>
+                <div class="info-value">${customer.contact}</div>
             </div>
             
-            <div class="col-lg-8">
-                <div class="row g-2 mb-3">
-                    <div class="col-md-6">
-                        <div class="stat-box">
-                            <div class="stat-value">${customer.total_orders}</div>
-                            <div class="stat-label">Total Orders</div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="stat-box">
-                            <div class="stat-value">₱${parseFloat(customer.total_spent).toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
-                            <div class="stat-label">Total Spent</div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="stat-box">
-                            <div class="stat-value">₱${parseFloat(avgOrderValue).toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
-                            <div class="stat-label">Avg Order</div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="stat-box">
-                            <div class="stat-value">${lastPurchase}</div>
-                            <div class="stat-label">Last Purchase</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="info-card">
-                    <div class="info-row">
-                        <small class="text-muted">Member Since</small>
-                        <strong>${new Date(customer.created_at).toLocaleDateString('en-US', {year: 'numeric', month: 'short', day: 'numeric'})}</strong>
-                    </div>
-                    <div class="info-row">
-                        <small class="text-muted">Last Updated</small>
-                        <strong>${new Date(customer.updated_at).toLocaleDateString('en-US', {year: 'numeric', month: 'short', day: 'numeric'})}</strong>
-                    </div>
-                </div>
+            <div class="info-card">
+                <div class="info-label"><i class="bi bi-geo-alt-fill me-1"></i>Address</div>
+                <div class="info-value">${customer.address}</div>
+            </div>
+            
+            <div class="info-card">
+                <div class="info-label"><i class="bi bi-calendar-check-fill me-1"></i>Member Since</div>
+                <div class="info-value">${memberSince}</div>
+            </div>
+        </div>
+        
+        <div class="stats-row">
+            <div class="stat-box">
+                <div class="stat-value"><i class="bi bi-cart-fill"></i> ${customer.total_orders}</div>
+                <div class="stat-label">Total Orders</div>
+            </div>
+            
+            <div class="stat-box">
+                <div class="stat-value">₱${parseFloat(customer.total_spent).toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
+                <div class="stat-label">Total Spent</div>
+            </div>
+            
+            <div class="stat-box">
+                <div class="stat-value">₱${parseFloat(avgOrderValue).toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
+                <div class="stat-label">Avg Order Value</div>
+            </div>
+            
+            <div class="stat-box">
+                <div class="stat-value" style="font-size: 0.9rem;">${lastPurchase}</div>
+                <div class="stat-label">Last Purchase</div>
             </div>
         </div>
     `;

@@ -134,29 +134,56 @@ include '../includes/sidebar.php';
 
 <style>
     :root {
-        --primary: #065275;
+        --primary: #3498db;
+        --primary-blue: #3498db;
+        --primary-green: #27ae60;
+        --primary-orange: #e67e22;
+        --primary-red: #e74c3c;
+        --primary-purple: #9b59b6;
+        --primary-yellow: #f1c40f;
+        --primary-teal: #1abc9c;
+        --primary-gray: #95a5a6;
+        --light-bg: #f8f9fa;
+        --card-bg: #ffffff;
+        --text-dark: #2c3e50;
+        --text-light: #7f8c8d;
+        --border-color: #e9ecef;
+        --shadow-light: 0 2px 10px rgba(0,0,0,0.04);
+        --shadow-medium: 0 4px 20px rgba(0,0,0,0.06);
         --success: #27ae60;
         --danger: #e74c3c;
-        --light: #f5f7fa;
+        --light: #f8f9fa;
         --border: #e9ecef;
+    }
+    
+    body {
+        background-color: var(--light-bg);
+        color: var(--text-dark);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     
     .main-content {
         margin-left: 280px;
         padding: 20px;
         min-height: 100vh;
-        background: var(--light);
+        background: var(--light-bg);
     }
     
     .page-header {
         margin-bottom: 25px;
+        background: linear-gradient(135deg, #1a4d5c 0%, #0f3543 100%);
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        color: white;
+        box-shadow: 0 4px 15px rgba(26, 77, 92, 0.2);
     }
     
     .page-header h2 {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #2c3e50;
+        font-size: 2rem;
+        font-weight: 800;
+        color: #ffffff;
         margin: 0;
+        letter-spacing: 0.5px;
     }
     
     .alert-custom {
@@ -165,6 +192,7 @@ include '../includes/sidebar.php';
         padding: 12px 16px;
         margin-bottom: 16px;
         font-size: 0.9rem;
+        box-shadow: var(--shadow-light);
     }
     
     .alert-success {
@@ -181,8 +209,9 @@ include '../includes/sidebar.php';
         display: flex;
         gap: 8px;
         margin-bottom: 24px;
-        border-bottom: 2px solid var(--border);
+        border-bottom: 2px solid var(--border-color);
         padding-bottom: 0;
+        flex-wrap: wrap;
     }
     
     .settings-tabs button {
@@ -191,20 +220,25 @@ include '../includes/sidebar.php';
         padding: 12px 20px;
         cursor: pointer;
         font-size: 0.95rem;
-        font-weight: 600;
-        color: #7f8c8d;
+        font-weight: 700;
+        color: var(--text-light);
         border-bottom: 3px solid transparent;
-        transition: all 0.2s ease;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         margin-bottom: -2px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        letter-spacing: 0.3px;
     }
     
     .settings-tabs button.active {
-        color: var(--primary);
-        border-color: var(--primary);
+        color: var(--primary-blue);
+        border-color: var(--primary-blue);
     }
     
     .settings-tabs button:hover {
-        color: var(--primary);
+        color: var(--primary-blue);
+        transform: translateY(-2px);
     }
     
     .tab-content {
@@ -213,24 +247,49 @@ include '../includes/sidebar.php';
     
     .tab-content.active {
         display: block;
+        animation: fadeIn 0.4s ease-out;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
     
     .card {
         background: white;
-        border: 1px solid var(--border);
-        border-radius: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
         padding: 24px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        box-shadow: var(--shadow-light);
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+    
+    .card:hover {
+        box-shadow: var(--shadow-medium);
+        border-color: rgba(52, 152, 219, 0.2);
     }
     
     .card h4 {
-        font-size: 1.2rem;
+        font-size: 1.25rem;
         font-weight: 700;
-        color: #2c3e50;
+        color: var(--text-dark);
         margin: 0 0 20px 0;
         display: flex;
         align-items: center;
         gap: 10px;
+        letter-spacing: 0.3px;
+    }
+    
+    .card h4 i {
+        color: var(--primary-blue);
+        font-size: 1.4rem;
     }
     
     .form-group {
@@ -239,41 +298,47 @@ include '../includes/sidebar.php';
     
     .form-group label {
         display: block;
-        font-weight: 600;
-        color: #2c3e50;
-        margin-bottom: 6px;
+        font-weight: 700;
+        color: var(--text-dark);
+        margin-bottom: 8px;
         font-size: 0.9rem;
+        letter-spacing: 0.2px;
     }
     
     .form-group input,
     .form-group textarea {
         width: 100%;
-        padding: 8px 12px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
+        padding: 10px 12px;
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
         font-size: 0.9rem;
         font-family: inherit;
+        transition: all 0.3s ease;
+        background: white;
     }
     
     .form-group input:focus,
     .form-group textarea:focus {
         outline: none;
-        border-color: var(--primary);
-        box-shadow: 0 0 0 3px rgba(6, 82, 117, 0.1);
+        border-color: var(--primary-blue);
+        box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.1);
+        background: #f8fbfe;
     }
     
     .form-group.pic-upload {
-        border: 2px dashed var(--border);
-        border-radius: 8px;
-        padding: 24px;
+        border: 2px dashed var(--border-color);
+        border-radius: 10px;
+        padding: 30px;
         text-align: center;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: linear-gradient(135deg, #f8fbfe 0%, #f0f7fc 100%);
     }
     
     .form-group.pic-upload:hover {
-        border-color: var(--primary);
-        background: rgba(6, 82, 117, 0.02);
+        border-color: var(--primary-blue);
+        background: linear-gradient(135deg, #e8f3fc 0%, #d8ecf8 100%);
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15);
     }
     
     .form-group.pic-upload input {
@@ -290,28 +355,34 @@ include '../includes/sidebar.php';
         max-height: 150px;
         margin-bottom: 16px;
         border-radius: 50%;
-        border: 3px solid var(--primary);
+        border: 4px solid rgba(52, 152, 219, 0.2);
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
     }
     
     .btn {
-        padding: 8px 20px;
+        padding: 10px 24px;
         border: none;
-        border-radius: 6px;
-        font-weight: 600;
+        border-radius: 8px;
+        font-weight: 700;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        letter-spacing: 0.3px;
     }
     
     .btn-primary {
-        background: var(--primary);
+        background: linear-gradient(135deg, var(--primary-blue), #2980b9);
         color: white;
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.25);
     }
     
     .btn-primary:hover {
-        background: #004a5c;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(6, 82, 117, 0.2);
+        background: linear-gradient(135deg, #2980b9, #1f618d);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(52, 152, 219, 0.35);
     }
     
     .form-row {
@@ -326,8 +397,9 @@ include '../includes/sidebar.php';
     
     .info-text {
         font-size: 0.85rem;
-        color: #7f8c8d;
-        margin-top: 4px;
+        color: var(--text-light);
+        margin-top: 6px;
+        font-style: italic;
     }
     
     @media (max-width: 768px) {
@@ -375,7 +447,7 @@ include '../includes/sidebar.php';
             
             <!-- Current Profile Picture -->
             <div style="text-align: center; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e9ecef;">
-                <div style="width: 110px; height: 110px; border-radius: 50%; background: #065275; color: white; display: flex; align-items: center; justify-content: center; font-size: 2.8rem; margin: 0 auto 15px; overflow: hidden; border: 3px solid #065275;">
+                <div style="width: 110px; height: 110px; border-radius: 50%; background: linear-gradient(135deg, var(--primary-blue), #2980b9); color: white; display: flex; align-items: center; justify-content: center; font-size: 2.8rem; margin: 0 auto 15px; overflow: hidden; border: 4px solid rgba(52, 152, 219, 0.2); box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);">
                     <?php if (!empty($user_data['profile_picture']) && file_exists('../assets/images/profiles/' . $user_data['profile_picture'])): ?>
                         <img src="../assets/images/profiles/<?php echo htmlspecialchars($user_data['profile_picture']); ?>?t=<?php echo time(); ?>" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
                     <?php else: ?>
@@ -415,7 +487,7 @@ include '../includes/sidebar.php';
                 <div class="form-group pic-upload">
                     <label class="pic-upload-label">
                         <div style="margin-bottom: 12px;">
-                            <i class="bi bi-cloud-upload" style="font-size: 2rem; color: #065275;"></i>
+                            <i class="bi bi-cloud-upload" style="font-size: 2rem; color: var(--primary-blue);"></i>
                         </div>
                         <div style="font-weight: 600; color: #2c3e50; margin-bottom: 4px;">Click to upload or drag and drop</div>
                         <div style="color: #7f8c8d; font-size: 0.85rem;">JPG, PNG, GIF (Max 2MB)</div>

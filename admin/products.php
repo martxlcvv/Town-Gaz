@@ -638,26 +638,24 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Welcome Header */
+/* Welcome Header - compact */
 .welcome-header {
     background: linear-gradient(135deg, var(--primary-teal) 0%, var(--secondary-teal) 100%);
-    border-radius: 12px;
-    padding: 2rem 1.5rem 1.5rem 1.5rem;
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
     color: white;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     box-shadow: var(--shadow-medium);
     border: none;
-    border-left: 5px solid var(--accent-cyan);
-    backdrop-filter: blur(10px);
 }
 
 .welcome-header h1 {
-    font-size: 2rem;
-    font-weight: 800;
-    margin-bottom: 0.5rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
     color: #ffffff;
-    letter-spacing: -0.5px;
-    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+    letter-spacing: -0.3px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .welcome-header h1 i {
@@ -667,8 +665,8 @@ body {
 .welcome-header p {
     color: rgba(255, 255, 255, 0.95);
     margin-bottom: 0;
-    font-size: 1.05rem;
-    letter-spacing: 0.3px;
+    font-size: 0.9rem;
+    letter-spacing: 0.2px;
 }
 
 /* Stats Cards - Dark Teal Design */

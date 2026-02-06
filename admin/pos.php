@@ -406,6 +406,20 @@ body {
 
 .product-card .card-body {
     padding: 10px;
+    overflow: hidden;
+}
+
+.product-card .card-body .flex-grow-1 {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.product-card h6 {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    width: 100%;
 }
 
 /* ============================================
@@ -814,6 +828,36 @@ body {
     opacity: 1;
 }
 
+#pinModal .modal-header {
+    border-bottom: 2px solid #ffc107;
+}
+
+#pinModal .modal-footer {
+    gap: 8px;
+}
+
+#pinModal .btn-warning {
+    background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+    border: none;
+    font-weight: 600;
+    color: #212529;
+}
+
+#pinModal .btn-warning:hover {
+    background: linear-gradient(135deg, #ffb300 0%, #f57f17 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+}
+
+#pinModal .btn-secondary {
+    background: #6c757d;
+    border: none;
+}
+
+#pinModal .btn-secondary:hover {
+    background: #5a6268;
+}
+
 /* ============================================
    CART CLOSE BUTTON
    ============================================ */
@@ -845,6 +889,57 @@ body {
     font-size: 0.9rem;
     border-radius: 8px;
     margin-bottom: 16px;
+}
+
+/* ============================================
+   PIN MODAL STYLING
+   ============================================ */
+.pin-input-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.pin-input {
+    max-width: 300px;
+    font-family: 'Courier New', monospace !important;
+    letter-spacing: 12px !important;
+    border: 2px solid #dee2e6 !important;
+}
+
+.pin-input:focus {
+    border-color: #ffc107 !important;
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.1) !important;
+}
+
+.pin-display {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.pin-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #dee2e6;
+    border: 2px solid #adb5bd;
+    transition: all 0.2s ease;
+}
+
+.pin-dot.filled {
+    background: #4dabf7;
+    border-color: #1971c2;
+    box-shadow: 0 0 8px rgba(77, 171, 247, 0.4);
+}
+
+#pinModal .modal-header {
+    border-bottom: 2px solid #ffc107;
+}
+
+#pinModal .modal-footer {
+    gap: 8px;
 }
 
 /* ============================================
@@ -909,6 +1004,16 @@ body {
         padding-bottom: 100px !important;
     }
     
+    .col-lg-8 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    .col-lg-8 .col-md-6.col-xl-4 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+    
     .floating-cart-btn {
         display: flex;
     }
@@ -939,17 +1044,17 @@ body {
     .cart-items-container {
         max-height: 40vh !important;
     }
-    
-    .col-md-6.col-xl-4 {
-        flex: 0 0 50%;
-        max-width: 50%;
-    }
 }
 
 /* ============================================
    MOBILE RESPONSIVE (< 768px)
    ============================================ */
 @media (max-width: 768px) {
+    .col-lg-8 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
     .col-md-6.col-xl-4 {
         flex: 0 0 100%;
         max-width: 100%;
@@ -961,6 +1066,9 @@ body {
     
     .product-card h6 {
         font-size: 0.9rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     
     .product-card img,
@@ -1044,6 +1152,16 @@ body {
         padding-bottom: 100px !important;
     }
     
+    .col-lg-8 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    .col-md-6.col-xl-4 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
     .card-header h6 {
         font-size: 0.95rem;
     }
@@ -1055,10 +1173,15 @@ body {
     
     .product-card .card-body {
         padding: 10px;
+        overflow: hidden;
     }
     
     .product-card h6 {
         font-size: 0.85rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 100%;
     }
     
     .product-card p {
@@ -1502,7 +1625,7 @@ body {
         
         <div class="row mb-3">
             <div class="col">
-                <h4 class="mb-0"><i class="bi bi-cart-check me-2"></i>Point of Sale</h4>
+                <h4 class="mb-0"><i class="bi bi-cart-check me-2"></i>Point-of-Sale</h4>
             </div>
         </div>
         
@@ -1752,7 +1875,7 @@ body {
                 <small class="text-danger" id="pinError"></small>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="cancelPinVerification()">Cancel</button>
                 <button type="button" class="btn btn-warning" id="confirmPinBtn" onclick="verifyPin()">Verify</button>
             </div>
         </div>
@@ -2005,21 +2128,58 @@ function updatePinDisplay() {
 function requestPin(action) {
     pendingAction = action;
     pinAttempts = 0;
+    pinLocked = false;
     
     const pinInput = document.getElementById('pinInput');
     const pinError = document.getElementById('pinError');
     const confirmBtn = document.getElementById('confirmPinBtn');
+    const pinDisplay = document.getElementById('pinDisplay');
     
-    if (pinInput) pinInput.value = '';
+    // Reset all fields
+    if (pinInput) {
+        pinInput.value = '';
+        pinInput.disabled = false;
+    }
     if (pinError) pinError.textContent = '';
-    if (confirmBtn) confirmBtn.disabled = false;
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Verify';
+    }
+    if (pinDisplay) pinDisplay.style.opacity = '1';
     
     updatePinDisplay();
     
     if (pinModal) {
         pinModal.show();
-        setTimeout(() => pinInput?.focus(), 200);
+        setTimeout(() => {
+            pinInput?.focus();
+        }, 300);
     }
+}
+
+function cancelPinVerification() {
+    // Reset PIN state when cancelled
+    pendingAction = null;
+    pinAttempts = 0;
+    pinLocked = false;
+    
+    const pinInput = document.getElementById('pinInput');
+    const pinError = document.getElementById('pinError');
+    const confirmBtn = document.getElementById('confirmPinBtn');
+    const pinDisplay = document.getElementById('pinDisplay');
+    
+    if (pinInput) {
+        pinInput.value = '';
+        pinInput.disabled = false;
+    }
+    if (pinError) pinError.textContent = '';
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Verify';
+    }
+    if (pinDisplay) pinDisplay.style.opacity = '1';
+    
+    updatePinDisplay();
 }
 
 async function verifyPin() {
@@ -2028,12 +2188,18 @@ async function verifyPin() {
     const confirmBtn = document.getElementById('confirmPinBtn');
     
     if (pin.length !== 6) {
-        if (pinError) pinError.textContent = 'PIN must be 6 digits';
+        if (pinError) {
+            pinError.textContent = 'PIN must be 6 digits';
+            pinError.style.color = '#ff6b6b';
+        }
         return;
     }
     
     if (pinLocked) {
-        if (pinError) pinError.textContent = 'Too many attempts. Please wait...';
+        if (pinError) {
+            pinError.textContent = 'Too many attempts. Please wait...';
+            pinError.style.color = '#ff6b6b';
+        }
         return;
     }
     
@@ -2071,13 +2237,15 @@ async function verifyPin() {
             pinAttempts = 0;
             pinLocked = false;
             
-            if (pinModal) pinModal.hide();
+            if (pinModal) {
+                pinModal.hide();
+            }
             
             Swal.fire({
                 icon: 'success',
                 title: 'PIN Verified!',
-                text: 'Proceeding with ' + pendingAction,
-                timer: 1500,
+                text: 'Proceeding with ' + (pendingAction || 'action'),
+                timer: 1200,
                 showConfirmButton: false
             });
             
@@ -2093,9 +2261,10 @@ async function verifyPin() {
                     title: 'Maximum Attempts Exceeded',
                     text: 'Too many incorrect attempts. Please wait 30 seconds before trying again.',
                     confirmButtonColor: '#ff6b6b'
+                }).then(() => {
+                    if (pinModal) pinModal.hide();
+                    startPinLockout();
                 });
-                
-                startPinLockout();
                 
                 const pinInput = document.getElementById('pinInput');
                 const pinDisplay = document.getElementById('pinDisplay');
@@ -2104,7 +2273,9 @@ async function verifyPin() {
                 
             } else {
                 if (pinError) {
-                    pinError.textContent = `Incorrect PIN. ${MAX_PIN_ATTEMPTS - pinAttempts} attempt(s) remaining`;
+                    const remaining = MAX_PIN_ATTEMPTS - pinAttempts;
+                    pinError.textContent = `Incorrect PIN. ${remaining} attempt(s) remaining`;
+                    pinError.style.color = '#ff6b6b';
                 }
                 
                 const pinInput = document.getElementById('pinInput');
@@ -2119,6 +2290,7 @@ async function verifyPin() {
         console.error('PIN Verification Error:', error);
         if (pinError) {
             pinError.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>Error: ${error.message}`;
+            pinError.style.color = '#ff6b6b';
         }
     } finally {
         confirmBtn.disabled = false;
@@ -2438,8 +2610,8 @@ function addToCart(product) {
         }
         existingItem.quantity++;
         showNotification('Updated quantity!', 'success');
-        // Decrease inventory when increasing quantity
-        updateInventoryInDatabase(productId, 1, 'add_to_cart');
+        // Update product card stock display in real-time
+        updateProductCardStock(productId);
     } else {
         if (currentStock < 1) {
             showNotification('Out of stock!', 'danger');
@@ -2457,8 +2629,8 @@ function addToCart(product) {
             unit: product.unit
         });
         showNotification('Added to cart!', 'success');
-        // Decrease inventory when adding to cart
-        updateInventoryInDatabase(productId, 1, 'add_to_cart');
+        // Update product card stock display in real-time
+        updateProductCardStock(productId);
     }
     
     updateCart();
@@ -2600,6 +2772,10 @@ function increaseQuantity(index) {
         return;
     }
     cart[index].quantity++;
+    
+    // Update product card stock display in real-time
+    updateProductCardStock(cart[index].product_id);
+    
     updateCart();
 }
 
@@ -2615,8 +2791,8 @@ function decreaseQuantityConfirmed(index) {
         const productId = cart[index].product_id;
         cart[index].quantity--;
         
-        // Restore inventory: add back 1 unit
-        updateInventoryInDatabase(productId, -1, 'decrease_quantity');
+        // Update product card stock display in real-time
+        updateProductCardStock(productId);
         
         updateCart();
         
@@ -2641,10 +2817,11 @@ function removeFromCartConfirmed(index) {
         const productId = cart[index].product_id;
         const quantity = cart[index].quantity;
         
-        // Restore inventory: use negative value to add back
-        updateInventoryInDatabase(productId, -quantity, 'remove_from_cart');
-        
         cart.splice(index, 1);
+        
+        // Update product card stock display in real-time
+        updateProductCardStock(productId);
+        
         updateCart();
         
         Swal.fire({
@@ -2662,16 +2839,17 @@ function clearCart() {
 }
 
 function clearCartConfirmed() {
-    // Restore inventory for ALL items in cart BEFORE clearing
-    cart.forEach(item => {
-        const productId = item.product_id;
-        const quantity = item.quantity;
-        // Restore inventory: use negative value to add back all items
-        updateInventoryInDatabase(productId, -quantity, 'clear_cart');
-    });
+    // Save product IDs before clearing cart
+    const productIds = cart.map(item => item.product_id);
     
+    // Clear cart first
     cart = [];
     appliedPromo = null;
+    
+    // Then update stock display for all items - NOW shows original stock
+    productIds.forEach(productId => {
+        updateProductCardStock(productId);
+    });
     
     const promoCode = document.getElementById('promoCode');
     const promoMessage = document.getElementById('promoMessage');
@@ -2973,43 +3151,48 @@ function escapeHtml(text) {
     return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
-// Update inventory in database in real-time
-function updateInventoryInDatabase(productId, quantityChange, action) {
-    const formData = new FormData();
-    formData.append('product_id', productId);
-    formData.append('quantity_change', quantityChange);
-    formData.append('action', action);
+// Update product card stock display in real-time (NO DATABASE UPDATES)
+function updateProductCardStock(productId) {
+    // Calculate remaining stock by counting items in cart
+    const cartQuantity = cart.reduce((total, item) => {
+        return item.product_id === productId ? total + item.quantity : total;
+    }, 0);
     
-    console.log('Calling API to update inventory: product=' + productId + ', change=' + quantityChange + ', action=' + action);
+    // Find all product cards with this ID
+    const productCards = document.querySelectorAll('[data-product-id="' + productId + '"]');
     
-    fetch('../api/update-pos-inventory.php', {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
+    productCards.forEach(card => {
+        // Get the original stock from data attribute
+        const originalStock = parseInt(card.getAttribute('data-current-stock')) || 0;
+        
+        // Calculate available stock (original - what's in cart)
+        const availableStock = Math.max(0, originalStock - cartQuantity);
+        
+        // Update the stock badge
+        const stockBadge = card.querySelector('.stock-badge-compact');
+        if (stockBadge) {
+            // Update text
+            stockBadge.textContent = availableStock + ' pcs';
+            
+            // Update styling based on availability
+            stockBadge.classList.remove('low', 'in');
+            if (availableStock < 1) {
+                stockBadge.classList.add('low');
+            } else {
+                stockBadge.classList.add('in');
+            }
         }
-    })
-    .then(response => {
-        console.log('API Response status:', response.status);
-        if (!response.ok) {
-            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log('API Response data:', data);
-        if (data.success) {
-            console.log('✓ Inventory updated: ' + data.product_name + ' - Old: ' + data.old_stock + ' → New: ' + data.new_stock);
-            // Refresh product display to show updated stock
-            refreshProductStock(productId, data.new_stock);
+        
+        // Disable/enable the card based on stock
+        if (availableStock < 1) {
+            card.classList.add('out-of-stock');
+            card.style.pointerEvents = 'none';
+            card.style.opacity = '0.5';
         } else {
-            console.error('✗ Inventory update failed: ' + data.message);
-            showNotification('Stock update failed: ' + data.message, 'warning');
+            card.classList.remove('out-of-stock');
+            card.style.pointerEvents = 'auto';
+            card.style.opacity = '1';
         }
-    })
-    .catch(error => {
-        console.error('✗ Network error updating inventory:', error);
-        showNotification('Connection error: ' + error.message, 'warning');
     });
 }
 

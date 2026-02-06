@@ -93,18 +93,17 @@ include '../includes/sidebar.php';
 ?>
 
 <style>
-/* Dashboard Header Styles */
+/* Dashboard Header Styles - compact */
 .dashboard-header {
     background: linear-gradient(135deg, #1a4d5c 0%, #0f3543 100%);
-    border-radius: 12px;
-    padding: 2rem 1.5rem 1.5rem 1.5rem;
-    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 6px 30px rgba(26, 77, 92, 0.25);
+    box-shadow: 0 4px 15px rgba(26, 77, 92, 0.2);
     color: white;
-    backdrop-filter: blur(10px);
 }
 
 .header-content h1 {
@@ -336,10 +335,7 @@ include '../includes/sidebar.php';
                 </p>
             </div>
             <div class="header-actions">
-                <div class="real-time-indicator animate-fade-in">
-                    <div class="pulse-dot"></div>
-                    <span>Live Updates</span>
-                </div>
+              
             </div>
         </div>
         

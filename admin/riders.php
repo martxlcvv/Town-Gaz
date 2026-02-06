@@ -9,13 +9,6 @@ $page_title = "Riders";
 
 // Handle Add/Edit Rider
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_rider'])) {
-    // Verify session token
-    if (!verify_csrf_token($_POST['session_token'] ?? '')) {
-        $_SESSION['error_message'] = "Invalid session. Please try again.";
-        header('Location: riders.php');
-        exit();
-    }
-    
     $rider_name = mysqli_real_escape_string($conn, $_POST['rider_name']);
     $contact = mysqli_real_escape_string($conn, $_POST['contact']);
     $address = mysqli_real_escape_string($conn, $_POST['address']);
@@ -81,8 +74,73 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_rider'])) {
     exit();
 }
 
-// Get riders with delivery stats
+// Handle Delete Rider
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_rider'])) {
+    $rider_id = (int)$_POST['rider_id'];
+    
+    // Get rider details before deletion
+    $rider_sql = "SELECT * FROM riders WHERE rider_id = $rider_id";
+    $rider_result = mysqli_query($conn, $rider_sql);
+    $rider_data = mysqli_fetch_assoc($rider_result);
+    
+    if ($rider_data) {
+        // Delete the rider
+        $delete_sql = "DELETE FROM riders WHERE rider_id = $rider_id";
+        if (mysqli_query($conn, $delete_sql)) {
+            $_SESSION['success'] = "Rider deleted successfully";
+        } else {
+            $_SESSION['error'] = "Error deleting rider";
+        }
+    }
+    
+    header('Location: riders.php');
+    exit();
+}
+
+// Get search and filter parameters
+$search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
+$filter_status = isset($_GET['status']) ? mysqli_real_escape_string($conn, $_GET['status']) : 'all';
+
+// Build query with search and filter
 $riders_sql = "SELECT r.rider_id,
+               r.rider_name,
+               r.contact,
+               r.address,
+               r.status,
+               r.profile_image,
+               r.created_at
+               FROM riders r
+               WHERE 1=1";
+
+if ($search) {
+    $riders_sql .= " AND (r.rider_name LIKE '%$search%' OR r.contact LIKE '%$search%')";
+}
+
+if ($filter_status != 'all') {
+    $riders_sql .= " AND r.status = '$filter_status'";
+}
+
+$riders_sql .= " ORDER BY r.rider_name";
+$riders_result = mysqli_query($conn, $riders_sql);
+
+// Count statistics
+$total_riders_sql = "SELECT COUNT(*) as total FROM riders";
+$total_result = mysqli_query($conn, $total_riders_sql);
+$total_data = mysqli_fetch_assoc($total_result);
+$total_riders = $total_data['total'];
+
+$active_riders_sql = "SELECT COUNT(*) as active FROM riders WHERE status = 'active'";
+$active_result = mysqli_query($conn, $active_riders_sql);
+$active_data = mysqli_fetch_assoc($active_result);
+$active_riders = $active_data['active'];
+
+$inactive_riders_sql = "SELECT COUNT(*) as inactive FROM riders WHERE status = 'inactive'";
+$inactive_result = mysqli_query($conn, $inactive_riders_sql);
+$inactive_data = mysqli_fetch_assoc($inactive_result);
+$inactive_riders = $inactive_data['inactive'];
+
+// Get riders with delivery stats for statistics
+$riders_stats_sql = "SELECT r.rider_id,
                r.rider_name,
                r.contact,
                r.address,
@@ -94,18 +152,40 @@ $riders_sql = "SELECT r.rider_id,
                LEFT JOIN deliveries d ON r.rider_id = d.rider_id
                GROUP BY r.rider_id, r.rider_name, r.contact, r.address, r.status, r.profile_image, r.created_at
                ORDER BY r.rider_name";
-$riders_result = mysqli_query($conn, $riders_sql);
+$riders_stats_result = mysqli_query($conn, $riders_stats_sql);
 
-// Count statistics
-$total_riders = mysqli_num_rows($riders_result);
-$active_riders = 0;
-$inactive_riders = 0;
-
-mysqli_data_seek($riders_result, 0);
-while ($r = mysqli_fetch_assoc($riders_result)) {
-    if ($r['status'] == 'active') $active_riders++;
-    else $inactive_riders++;
+// Get deletion history from audit logs
+// First check what columns exist in audit_logs table
+$check_columns = mysqli_query($conn, "SHOW COLUMNS FROM audit_logs");
+$available_columns = [];
+while ($col = mysqli_fetch_assoc($check_columns)) {
+    $available_columns[] = $col['Field'];
 }
+
+// Build query based on available columns
+$has_old_data = in_array('old_data', $available_columns);
+$has_timestamp = in_array('timestamp', $available_columns);
+$has_created_at = in_array('created_at', $available_columns);
+
+// Determine timestamp column to use
+$timestamp_column = 'NOW()'; // default fallback
+if ($has_timestamp) {
+    $timestamp_column = 'al.timestamp';
+} elseif ($has_created_at) {
+    $timestamp_column = 'al.created_at';
+}
+
+// Build the query
+$deletion_history_sql = "SELECT al.user_id, al.action, al.table_name, al.record_id,";
+$deletion_history_sql .= $has_old_data ? " al.old_data," : " NULL as old_data,";
+$deletion_history_sql .= " $timestamp_column as timestamp, u.full_name as admin_name";
+$deletion_history_sql .= " FROM audit_logs al";
+$deletion_history_sql .= " LEFT JOIN users u ON al.user_id = u.user_id";
+$deletion_history_sql .= " WHERE al.table_name = 'riders' AND al.action = 'DELETE'";
+$deletion_history_sql .= " ORDER BY $timestamp_column DESC";
+$deletion_history_sql .= " LIMIT 50";
+
+$deletion_history_result = mysqli_query($conn, $deletion_history_sql);
 
 include '../includes/header.php';
 include '../includes/sidebar.php';
@@ -216,6 +296,7 @@ body {
     align-items: center;
     gap: 0.5rem;
     box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+    cursor: pointer;
 }
 
 .btn-add-rider:hover {
@@ -235,13 +316,13 @@ body {
 .stat-card {
     background: var(--card-bg);
     border-radius: 12px;
-    padding: 1.5rem;
+    padding: 1rem;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border-top: 5px solid;
+    border-top: 4px solid;
     display: flex;
     align-items: flex-start;
-    gap: 1rem;
+    gap: 0.75rem;
 }
 
 .stat-card:hover {
@@ -262,13 +343,13 @@ body {
 }
 
 .stat-card-icon {
-    width: 50px;
-    height: 50px;
-    border-radius: 12px;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     flex-shrink: 0;
 }
 
@@ -289,17 +370,17 @@ body {
 
 .stat-card-content h6 {
     color: var(--text-light);
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.7px;
-    margin-bottom: 0.5rem;
+    letter-spacing: 0.6px;
+    margin-bottom: 0.3rem;
 }
 
 .stat-card-content h3 {
     color: var(--text-dark);
     font-weight: 800;
-    font-size: 1.85rem;
+    font-size: 1.5rem;
     margin: 0;
     line-height: 1;
 }
@@ -352,9 +433,9 @@ body {
     color: var(--text-dark);
     font-weight: 700;
     text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.6px;
-    padding: 1rem 0.85rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.5px;
+    padding: 0.75rem 0.75rem;
     border-bottom: 2px solid var(--border-color);
     vertical-align: middle;
 }
@@ -371,10 +452,11 @@ body {
 }
 
 .riders-table tbody td {
-    padding: 1rem 0.85rem;
+    padding: 0.75rem 0.75rem;
     vertical-align: middle;
     border: none;
     color: var(--text-dark);
+    font-size: 0.85rem;
 }
 
 .riders-table tbody tr td:first-child {
@@ -433,21 +515,22 @@ body {
 
 .action-buttons {
     display: flex;
-    gap: 0.35rem;
+    gap: 0.25rem;
 }
 
 .btn-action {
-    width: 38px;
-    height: 38px;
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
     border: 1px solid #e9ecef;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     cursor: pointer;
     background: white;
+    padding: 0;
 }
 
 .btn-action:hover {
@@ -463,6 +546,17 @@ body {
 
 .btn-edit:hover {
     background: linear-gradient(135deg, #2980b9, #1f618d);
+    color: white;
+}
+
+.btn-delete {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+    border: none;
+}
+
+.btn-delete:hover {
+    background: linear-gradient(135deg, #c0392b, #a93226);
     color: white;
 }
 
@@ -579,7 +673,6 @@ body {
 
 <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.0/dist/sweetalert2.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.0/dist/sweetalert2.all.min.js"></script>
-</style>
 
 <div class="main-content">
     <div class="container-fluid">
@@ -594,7 +687,7 @@ body {
                 </p>
             </div>
             <div class="header-actions">
-                <button class="btn btn-add-rider" data-bs-toggle="modal" data-bs-target="#riderModal">
+                <button type="button" class="btn btn-add-rider" data-bs-toggle="modal" data-bs-target="#riderModal">
                     <i class="bi bi-plus-circle me-2"></i>Add New Rider
                 </button>
             </div>
@@ -653,10 +746,28 @@ body {
             </div>
         </div>
         
+        <!-- Search and Filter -->
+        <div class="content-card" style="margin-bottom: 1rem;">
+            <div class="content-card-header">
+                <h5 style="margin: 0;"><i class="bi bi-search me-2"></i>Search & Filter</h5>
+            </div>
+            <div class="table-wrapper" style="padding: 1rem;">
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <input type="text" id="searchInput" placeholder="Search by name or contact..." value="<?php echo htmlspecialchars($search); ?>" 
+                           style="flex: 1; min-width: 200px; padding: 0.6rem 0.8rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem;">
+                    <select id="statusFilter" style="padding: 0.6rem 0.8rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem;">
+                        <option value="all">All Status</option>
+                        <option value="active" <?php echo ($filter_status == 'active') ? 'selected' : ''; ?>>Active</option>
+                        <option value="inactive" <?php echo ($filter_status == 'inactive') ? 'selected' : ''; ?>>Inactive</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
         <!-- Riders Table -->
         <div class="content-card">
             <div class="content-card-header">
-                <h5>
+                <h5 style="margin: 0;">
                     <i class="bi bi-list-check me-2"></i>All Riders
                 </h5>
             </div>
@@ -668,18 +779,19 @@ body {
                             <th>Rider</th>
                             <th>Contact</th>
                             <th>Address</th>
-                            <th>Active</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="ridersTableBody">
                         <?php 
                         mysqli_data_seek($riders_result, 0);
                         if (mysqli_num_rows($riders_result) > 0):
                             while ($rider = mysqli_fetch_assoc($riders_result)): 
                         ?>
-                            <tr>
+                            <tr data-name="<?php echo strtolower($rider['rider_name']); ?>" 
+                                data-contact="<?php echo strtolower($rider['contact']); ?>" 
+                                data-status="<?php echo $rider['status']; ?>">
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <div class="rider-avatar">
@@ -695,28 +807,34 @@ body {
                                 </td>
                                 <td><?php echo htmlspecialchars($rider['contact']); ?></td>
                                 <td><?php echo htmlspecialchars($rider['address']); ?></td>
-                                <td><strong><?php echo $rider['active_deliveries']; ?></strong></td>
                                 <td>
                                     <span class="badge badge-custom badge-<?php echo $rider['status'] == 'active' ? 'active' : 'inactive'; ?>">
                                         <?php echo ucfirst($rider['status']); ?>
                                     </span>
                                 </td>
                                 <td>
-                                    <button class="btn-action btn-edit" 
-                                            onclick="editRider(<?php echo htmlspecialchars(json_encode($rider)); ?>)"
-                                            title="Edit Rider">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
+                                    <div class="action-buttons">
+                                        <button type="button" class="btn-action btn-edit" 
+                                                onclick='editRider(<?php echo json_encode($rider); ?>)'
+                                                title="Edit Rider">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button type="button" class="btn-action btn-delete" 
+                                                onclick="confirmDeleteRider(<?php echo $rider['rider_id']; ?>, '<?php echo addslashes($rider['rider_name']); ?>')"
+                                                title="Delete Rider">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         <?php 
                             endwhile;
                         else:
                         ?>
-                            <tr>
-                                <td colspan="6" class="text-center text-muted py-5">
-                                    <i class="bi bi-inbox" style="font-size: 3rem; color: #cbd5e0;"></i>
-                                    <p class="mb-0" style="margin-top: 0.75rem;">No riders found</p>
+                            <tr id="noResultsRow">
+                                <td colspan="5" class="text-center text-muted py-4">
+                                    <i class="bi bi-inbox" style="font-size: 2.5rem; color: #cbd5e0;"></i>
+                                    <p class="mb-0" style="margin-top: 0.5rem; font-size: 0.9rem;">No riders found</p>
                                 </td>
                             </tr>
                         <?php endif; ?>
@@ -724,6 +842,64 @@ body {
                 </table>
             </div>
         </div>
+        
+        <!-- Deletion History Section -->
+        <?php if ($deletion_history_result && mysqli_num_rows($deletion_history_result) > 0): ?>
+        <div class="content-card">
+            <div class="content-card-header">
+                <h5 style="margin: 0;">
+                    <i class="bi bi-trash me-2"></i>Deletion History
+                </h5>
+            </div>
+            
+            <div class="table-wrapper">
+                <table class="riders-table">
+                    <thead>
+                        <tr>
+                            <th>Rider Name</th>
+                            <th>Contact</th>
+                            <th>Deleted By</th>
+                            <th>Deleted Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        while ($deletion = mysqli_fetch_assoc($deletion_history_result)): 
+                            $old_data = $deletion['old_data'] ? json_decode($deletion['old_data'], true) : null;
+                            
+                            // Provide default values if old_data doesn't exist
+                            $rider_name = isset($old_data['rider_name']) ? $old_data['rider_name'] : 'Unknown Rider';
+                            $contact = isset($old_data['contact']) ? $old_data['contact'] : 'N/A';
+                        ?>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="rider-avatar" style="background: linear-gradient(135deg, #e74c3c, #c0392b);">
+                                            <?php echo strtoupper(substr($rider_name, 0, 1)); ?>
+                                        </div>
+                                        <strong><?php echo htmlspecialchars($rider_name); ?></strong>
+                                    </div>
+                                </td>
+                                <td><?php echo htmlspecialchars($contact); ?></td>
+                                <td><?php echo htmlspecialchars($deletion['admin_name'] ?? 'System'); ?></td>
+                                <td>
+                                    <small style="color: #7f8c8d;">
+                                        <?php 
+                                        if ($deletion['timestamp'] && $deletion['timestamp'] != 'NOW()') {
+                                            echo date('M d, Y h:i A', strtotime($deletion['timestamp']));
+                                        } else {
+                                            echo 'N/A';
+                                        }
+                                        ?>
+                                    </small>
+                                </td>
+                            </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -779,7 +955,7 @@ body {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-modal-action" onclick="submitRiderForm(event)">
+                    <button type="submit" class="btn btn-primary btn-modal-action">
                         <i class="bi bi-save me-2"></i>Save Rider
                     </button>
                 </div>
@@ -789,6 +965,65 @@ body {
 </div>
 
 <script>
+// Live search functionality
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    filterTable();
+});
+
+document.getElementById('statusFilter').addEventListener('change', function() {
+    filterTable();
+});
+
+function filterTable() {
+    const searchValue = document.getElementById('searchInput').value.toLowerCase();
+    const statusValue = document.getElementById('statusFilter').value;
+    const tbody = document.getElementById('ridersTableBody');
+    const rows = tbody.getElementsByTagName('tr');
+    let visibleCount = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        
+        // Skip the "no results" row
+        if (row.id === 'noResultsRow') continue;
+        
+        const name = row.getAttribute('data-name') || '';
+        const contact = row.getAttribute('data-contact') || '';
+        const status = row.getAttribute('data-status') || '';
+        
+        const matchesSearch = name.includes(searchValue) || contact.includes(searchValue);
+        const matchesStatus = statusValue === 'all' || status === statusValue;
+        
+        if (matchesSearch && matchesStatus) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    }
+    
+    // Show/hide no results message
+    let noResultsRow = document.getElementById('noResultsRow');
+    if (visibleCount === 0) {
+        if (!noResultsRow) {
+            noResultsRow = document.createElement('tr');
+            noResultsRow.id = 'noResultsRow';
+            noResultsRow.innerHTML = `
+                <td colspan="5" class="text-center text-muted py-4">
+                    <i class="bi bi-inbox" style="font-size: 2.5rem; color: #cbd5e0;"></i>
+                    <p class="mb-0" style="margin-top: 0.5rem; font-size: 0.9rem;">No riders found</p>
+                </td>
+            `;
+            tbody.appendChild(noResultsRow);
+        }
+        noResultsRow.style.display = '';
+    } else {
+        if (noResultsRow) {
+            noResultsRow.style.display = 'none';
+        }
+    }
+}
+
 function previewImage(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
@@ -817,59 +1052,31 @@ function editRider(rider) {
         preview.style.display = 'none';
     }
     
-    new bootstrap.Modal(document.getElementById('riderModal')).show();
+    const modal = new bootstrap.Modal(document.getElementById('riderModal'));
+    modal.show();
 }
 
-function submitRiderForm(event) {
-    event.preventDefault();
-    
-    const form = document.getElementById('riderForm');
-    const riderId = document.getElementById('rider_id').value;
-    const isEdit = riderId ? true : false;
-    
-    const formData = new FormData(form);
-    
-    // Show loading
+function confirmDeleteRider(riderId, riderName) {
     Swal.fire({
-        title: 'Processing...',
-        text: 'Please wait while we save the rider information.',
-        icon: 'info',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        didOpen: () => {
-            Swal.showLoading();
+        title: 'Delete Rider?',
+        html: `Are you sure you want to delete <strong>${riderName}</strong>? This action cannot be undone.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#95a5a6',
+        confirmButtonText: 'Yes, Delete',
+        cancelButtonText: 'Cancel'
+    }).then(result => {
+        if (result.isConfirmed) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.innerHTML = `
+                <input type="hidden" name="delete_rider" value="1">
+                <input type="hidden" name="rider_id" value="${riderId}">
+            `;
+            document.body.appendChild(form);
+            form.submit();
         }
-    });
-    
-    fetch(window.location.href, {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.ok ? Promise.resolve() : Promise.reject())
-    .then(() => {
-        Swal.fire({
-            title: 'Success!',
-            text: isEdit ? 'Rider updated successfully!' : 'Rider added successfully!',
-            icon: 'success',
-            confirmButtonColor: '#1a4d5c',
-            confirmButtonText: 'OK',
-            allowOutsideClick: false,
-            allowEscapeKey: false
-        }).then(() => {
-            location.reload();
-        });
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        Swal.fire({
-            title: 'Error!',
-            text: 'An error occurred while saving the rider.',
-            icon: 'error',
-            confirmButtonColor: '#e74c3c'
-        });
     });
 }
 
@@ -879,6 +1086,13 @@ document.getElementById('riderModal').addEventListener('hidden.bs.modal', functi
     document.getElementById('riderForm').reset();
     document.getElementById('rider_id').value = '';
     document.getElementById('imagePreview').style.display = 'none';
+});
+
+// Form submit handler
+document.getElementById('riderForm').addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 });
 </script>
 

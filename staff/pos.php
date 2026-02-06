@@ -1710,18 +1710,7 @@ body {
                                 </div>
                             </div>
                             
-                            <div class="mb-2">
-                                <label class="form-label">
-                                    <i class="bi bi-tag-fill"></i> Promo Code
-                                </label>
-                                <div class="promo-input-group">
-                                    <input type="text" class="form-control" id="promoCode" placeholder="Enter code">
-                                    <button class="btn btn-primary" type="button" onclick="applyPromo()">
-                                        <i class="bi bi-check"></i>
-                                    </button>
-                                </div>
-                                <div id="promoMessage"></div>
-                            </div>
+                            <!-- Promo Code removed for staff POS (kept in admin POS) -->
                             
                             <div class="mb-0">
                                 <label class="form-label">

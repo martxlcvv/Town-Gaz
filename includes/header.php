@@ -49,6 +49,7 @@ header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
     
     <style>
     :root {
+        --primary-blue: #3498db;
         --primary-teal: #1a4d5c;
         --primary-teal-light: #216b7d;
         --primary-teal-dark: #0f3543;

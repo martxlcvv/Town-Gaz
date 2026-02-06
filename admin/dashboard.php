@@ -121,7 +121,7 @@ for ($i = 6; $i >= 0; $i--) {
 $pie_data_sql = "SELECT 
     CASE 
         WHEN p.size LIKE '%kg%' THEN 'Large Tanks'
-        WHEN p.size LIKE '%11%' THEN 'Medium Tanks'
+        WHEN p.size LIKE '%11%' THEN 'All Tanks'
         ELSE 'Small Tanks'
     END as category,
     SUM(si.subtotal) as total_sales
@@ -181,7 +181,6 @@ body {
     color: white;
     margin-bottom: 1rem;
     box-shadow: 0 4px 15px rgba(26, 77, 92, 0.2);
-    border-left: 4px solid var(--accent-cyan);
 }
 
 .dashboard-header h1 {
@@ -593,11 +592,7 @@ body {
                     <h1><i class="bi bi-speedometer2 me-2"></i>Dashboard Overview</h1>
                     <p>Welcome back, <strong><?php echo htmlspecialchars($_SESSION['full_name']); ?></strong>! Real-time insights for <?php echo date('F d, Y'); ?></p>
                 </div>
-               
-                    <button class="btn btn-sm btn-light" onclick="location.reload()">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh
-                    </button>
-                </div>
+                
             </div>
         </div>
 

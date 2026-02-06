@@ -1,4 +1,5 @@
 <?php
+// Regular page load
 session_start();
 require_once '../config/database.php';
 require_once '../auth/check-auth.php';
@@ -6,40 +7,6 @@ require_admin();
 prevent_cache();
 
 $page_title = "Deliveries";
-
-// Handle rider assignment
-if (isset($_POST['assign_rider'])) {
-    $delivery_id = (int)$_POST['delivery_id'];
-    $rider_id = (int)$_POST['rider_id'];
-    
-    $sql = "UPDATE deliveries SET rider_id = $rider_id, 
-            delivery_status = 'assigned', updated_at = NOW() 
-            WHERE delivery_id = $delivery_id";
-    
-    if (mysqli_query($conn, $sql)) {
-        log_audit($_SESSION['user_id'], 'UPDATE', 'deliveries', $delivery_id, null, 
-                 ['rider_assigned' => $rider_id, 'status' => 'assigned']);
-        echo json_encode(['success' => true, 'message' => 'Rider assigned successfully!']);
-        exit();
-    }
-}
-
-// Handle status update
-if (isset($_POST['update_status'])) {
-    $delivery_id = (int)$_POST['delivery_id'];
-    $status = mysqli_real_escape_string($conn, $_POST['status']);
-    
-    $old_sql = "SELECT delivery_status FROM deliveries WHERE delivery_id = $delivery_id";
-    $old_data = mysqli_fetch_assoc(mysqli_query($conn, $old_sql));
-    
-    $sql = "UPDATE deliveries SET delivery_status = '$status', updated_at = NOW() WHERE delivery_id = $delivery_id";
-    if (mysqli_query($conn, $sql)) {
-        log_audit($_SESSION['user_id'], 'UPDATE', 'deliveries', $delivery_id, $old_data, 
-                 ['status' => $status]);
-        echo json_encode(['success' => true, 'message' => 'Delivery status updated successfully!']);
-        exit();
-    }
-}
 
 // Get deliveries separated by type
 $walkin_sql = "SELECT d.*, 
@@ -127,27 +94,26 @@ include '../includes/sidebar.php';
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.0/dist/sweetalert2.all.min.js"></script>
 
 <style>
-/* Dashboard Header Styles */
+/* Dashboard Header Styles - compact */
 .dashboard-header {
     background: linear-gradient(135deg, #1a4d5c 0%, #0f3543 100%);
-    border-radius: 12px;
-    padding: 2rem 1.5rem 1.5rem 1.5rem;
-    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 6px 30px rgba(26, 77, 92, 0.25);
+    box-shadow: 0 4px 15px rgba(26, 77, 92, 0.2);
     color: white;
-    backdrop-filter: blur(10px);
 }
 
 .header-content h1 {
-    font-size: 2.2rem;
-    font-weight: 800;
-    margin-bottom: 0.5rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
     color: #ffffff;
-    letter-spacing: 0.5px;
-    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+    letter-spacing: 0.3px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .header-content p {
@@ -253,9 +219,8 @@ include '../includes/sidebar.php';
                 </p>
             </div>
             <div class="header-actions">
-                <div class="real-time-indicator animate-fade-in">
-                    <div class="pulse-dot"></div>
-                    <span>Live Updates</span>
+           
+                    
                 </div>
             </div>
         </div>
@@ -323,9 +288,24 @@ include '../includes/sidebar.php';
                                 <p class="text-lg md:text-xl font-bold text-green-600">₱<?php echo number_format($item['total_amount'], 2); ?></p>
                             </div>
 
-                            <button onclick="viewOrderDetails(<?php echo $item['sale_id']; ?>)" class="w-full mt-2 px-3 py-2 bg-green-700 text-white text-sm font-semibold rounded hover:bg-green-800 transition">
-                                <i class="bi bi-eye mr-1"></i>View Details
-                            </button>
+                            <?php if ($item['rider_name']): ?>
+                                <div class="bg-gradient-to-r from-emerald-800 to-emerald-900 p-3 rounded-lg shadow-md border-2 border-yellow-400">
+                                    <p class="text-xs font-bold text-yellow-300 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                        <i class="bi bi-person-check-fill"></i> Rider Assigned
+                                    </p>
+                                    <p class="text-yellow-400 font-bold text-sm md:text-base flex items-center gap-2">
+                                        <i class="bi bi-bicycle"></i>
+                                        <?php echo htmlspecialchars($item['rider_name']); ?>
+                                    </p>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="flex flex-col gap-2 mt-2">
+                                <button onclick="viewOrderDetails(<?php echo $item['sale_id']; ?>)" class="w-full px-3 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white text-sm font-bold rounded-lg hover:from-green-700 hover:to-green-800 transition shadow-md flex items-center justify-center gap-2">
+                                    <i class="bi bi-eye-fill"></i>
+                                    <span>View Details</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 <?php 
@@ -348,8 +328,8 @@ include '../includes/sidebar.php';
                 if (mysqli_num_rows($delivery_result) > 0) {
                     while ($item = mysqli_fetch_assoc($delivery_result)): 
                 ?>
-                    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition">
-                        <div class="bg-gradient-to-r from-gray-50 to-gray-100 p-3 md:p-4 border-b">
+                    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition border-t-4 border-t-blue-500">
+                        <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-3 md:p-4 border-b">
                             <h4 class="font-semibold text-gray-900 text-sm md:text-base"><?php echo htmlspecialchars($item['invoice_number']); ?></h4>
                             <p class="text-xs md:text-sm text-gray-600">
                                 <i class="bi bi-clock mr-1"></i><?php echo date('M d, Y h:i A', strtotime($item['created_at'])); ?>
@@ -377,15 +357,27 @@ include '../includes/sidebar.php';
                             </div>
 
                             <?php if ($item['rider_name']): ?>
-                                <div class="bg-green-50 p-2 rounded text-sm">
-                                    <p class="text-xs font-semibold text-green-700">Rider Assigned</p>
-                                    <p class="text-green-900 font-medium text-xs md:text-sm"><?php echo htmlspecialchars($item['rider_name']); ?></p>
+                                <div class="bg-gradient-to-r from-emerald-800 to-emerald-900 p-3 rounded-lg shadow-md border-2 border-yellow-400">
+                                    <p class="text-xs font-bold text-yellow-300 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                        <i class="bi bi-person-check-fill"></i> Rider Assigned
+                                    </p>
+                                    <p class="text-yellow-400 font-bold text-sm md:text-base flex items-center gap-2">
+                                        <i class="bi bi-bicycle"></i>
+                                        <?php echo htmlspecialchars($item['rider_name']); ?>
+                                    </p>
                                 </div>
                             <?php endif; ?>
 
-                            <button onclick="viewOrderDetails(<?php echo $item['sale_id']; ?>)" class="w-full mt-2 px-3 py-2 bg-blue-700 text-white text-sm font-semibold rounded hover:bg-blue-800 transition">
-                                <i class="bi bi-eye mr-1"></i>View Details
-                            </button>
+                            <div class="flex flex-col gap-2 mt-2">
+                                <button onclick="assignRider(<?php echo $item['delivery_id']; ?>)" class="w-full px-3 py-2.5 bg-gradient-to-r from-blue-900 to-blue-800 text-white text-sm font-bold rounded-lg hover:from-blue-800 hover:to-blue-700 transition shadow-md flex items-center justify-center gap-2">
+                                    <i class="bi bi-person-plus-fill"></i>
+                                    <span>Assign Rider</span>
+                                </button>
+                                <button onclick="viewOrderDetails(<?php echo $item['sale_id']; ?>)" class="w-full px-3 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white text-sm font-bold rounded-lg hover:from-green-700 hover:to-green-800 transition shadow-md flex items-center justify-center gap-2">
+                                    <i class="bi bi-eye-fill"></i>
+                                    <span>View Details</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 <?php 
@@ -427,14 +419,13 @@ include '../includes/sidebar.php';
             <div class="overflow-x-auto">
                 <table class="w-full text-xs md:text-sm">
                     <thead>
-                        <tr class="border-b-2 border-gray-200 bg-gray-50">
-                            <th class="px-2 md:px-4 py-2 md:py-3 text-left font-semibold text-gray-700">Invoice</th>
-                            <th class="px-2 md:px-4 py-2 md:py-3 text-left font-semibold text-gray-700">Customer</th>
-                            <th class="px-2 md:px-4 py-2 md:py-3 text-left font-semibold text-gray-700 hidden sm:table-cell">Type</th>
-                            <th class="px-2 md:px-4 py-2 md:py-3 text-left font-semibold text-gray-700 hidden md:table-cell">Date</th>
-                            <th class="px-2 md:px-4 py-2 md:py-3 text-right font-semibold text-gray-700">Amount</th>
-                            <th class="px-2 md:px-4 py-2 md:py-3 text-center font-semibold text-gray-700 hidden sm:table-cell">Status</th>
-                            <th class="px-2 md:px-4 py-2 md:py-3 text-center font-semibold text-gray-700">Action</th>
+                        <tr class="border-b border-gray-300 bg-gray-50">
+                            <th class="px-2 md:px-3 py-2 text-left font-semibold text-gray-700 text-xs md:text-sm">Invoice</th>
+                            <th class="px-2 md:px-3 py-2 text-left font-semibold text-gray-700 text-xs md:text-sm">Customer</th>
+                            <th class="px-2 md:px-3 py-2 text-left font-semibold text-gray-700 hidden sm:table-cell text-xs md:text-sm">Type</th>
+                            <th class="px-2 md:px-3 py-2 text-left font-semibold text-gray-700 hidden md:table-cell text-xs md:text-sm">Date</th>
+                            <th class="px-2 md:px-3 py-2 text-right font-semibold text-gray-700 text-xs md:text-sm">Amount</th>
+                            <th class="px-2 md:px-3 py-2 text-center font-semibold text-gray-700 text-xs md:text-sm">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -443,39 +434,25 @@ include '../includes/sidebar.php';
                             while ($row = mysqli_fetch_assoc($history_result)): 
                         ?>
                             <tr class="border-b border-gray-200 hover:bg-gray-50">
-                                <td class="px-2 md:px-4 py-2 md:py-3 font-medium text-gray-900 text-xs md:text-sm"><?php echo htmlspecialchars($row['invoice_number']); ?></td>
-                                <td class="px-2 md:px-4 py-2 md:py-3 text-gray-700 text-xs md:text-sm">
+                                <td class="px-2 md:px-3 py-1.5 font-medium text-gray-900 text-xs md:text-sm"><?php echo htmlspecialchars($row['invoice_number']); ?></td>
+                                <td class="px-2 md:px-3 py-1.5 text-gray-700 text-xs md:text-sm">
                                     <?php echo htmlspecialchars($row['customer_name'] ?? 'Walk-In'); ?>
                                 </td>
-                                <td class="px-2 md:px-4 py-2 md:py-3 hidden sm:table-cell">
+                                <td class="px-2 md:px-3 py-1.5 hidden sm:table-cell">
                                     <?php if ($row['customer_name'] == NULL): ?>
                                         <span class="inline-block px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded">Walk In</span>
                                     <?php else: ?>
                                         <span class="inline-block px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded">Delivery</span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="px-2 md:px-4 py-2 md:py-3 text-gray-700 text-xs md:text-sm hidden md:table-cell">
+                                <td class="px-2 md:px-3 py-1.5 text-gray-700 text-xs md:text-sm hidden md:table-cell">
                                     <?php echo date('M d, Y', strtotime($row['sale_date'])); ?>
                                 </td>
-                                <td class="px-2 md:px-4 py-2 md:py-3 text-right font-bold text-gray-900 text-xs md:text-sm">
+                                <td class="px-2 md:px-3 py-1.5 text-right font-bold text-gray-900 text-xs md:text-sm">
                                     ₱<?php echo number_format($row['total_amount'], 2); ?>
                                 </td>
-                                <td class="px-2 md:px-4 py-2 md:py-3 text-center hidden sm:table-cell">
-                                    <?php 
-                                    $status_color = [
-                                        'pending' => 'bg-yellow-100 text-yellow-700',
-                                        'completed' => 'bg-green-100 text-green-700',
-                                        'delivered' => 'bg-green-100 text-green-700',
-                                        'in_transit' => 'bg-blue-100 text-blue-700'
-                                    ];
-                                    $color = $status_color[$row['delivery_status']] ?? 'bg-gray-100 text-gray-700';
-                                    ?>
-                                    <span class="inline-block px-2 py-1 text-xs font-semibold rounded <?php echo $color; ?>">
-                                        <?php echo ucwords(str_replace('_', ' ', $row['delivery_status'])); ?>
-                                    </span>
-                                </td>
-                                <td class="px-2 md:px-4 py-2 md:py-3 text-center">
-                                    <button onclick="viewOrderDetails(<?php echo $row['sale_id']; ?>)" class="px-2 md:px-3 py-1 text-xs md:text-sm font-semibold text-white bg-gray-700 rounded hover:bg-gray-800 transition whitespace-nowrap">
+                                <td class="px-2 md:px-3 py-1.5 text-center">
+                                    <button onclick="viewOrderDetails(<?php echo $row['sale_id']; ?>)" class="px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 active:from-green-800 active:to-green-900 rounded-md transition whitespace-nowrap shadow-md">
                                         <i class="bi bi-eye"></i> View
                                     </button>
                                 </td>
@@ -485,9 +462,9 @@ include '../includes/sidebar.php';
                         } else {
                         ?>
                             <tr>
-                                <td colspan="7" class="px-4 py-8 text-center text-gray-500">
-                                    <i class="bi bi-inbox text-2xl md:text-3xl text-gray-300"></i>
-                                    <p class="mt-2 text-sm md:text-base">No orders found</p>
+                                <td colspan="6" class="px-4 py-6 text-center text-gray-500">
+                                    <i class="bi bi-inbox text-2xl text-gray-300"></i>
+                                    <p class="mt-1 text-sm">No orders found</p>
                                 </td>
                             </tr>
                         <?php } ?>
@@ -500,13 +477,15 @@ include '../includes/sidebar.php';
 </div>
 
 <!-- Order Details Modal -->
-<div id="detailsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-lg max-w-2xl w-full max-h-96 overflow-y-auto">
-        <div class="sticky top-0 bg-gradient-to-r from-gray-50 to-gray-100 p-6 border-b flex justify-between items-center">
-            <h3 class="text-xl font-bold text-gray-900">Order Details</h3>
-            <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+<div id="detailsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-4 overflow-y-auto">
+    <div class="bg-white rounded-lg max-w-md w-full shadow-lg">
+        <div class="sticky top-0 bg-gradient-to-r from-teal-700 to-teal-600 px-4 py-3 border-b flex justify-between items-center z-10">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i class="bi bi-receipt"></i>Order Details
+            </h3>
+            <button onclick="closeModal()" class="bg-red-500 hover:bg-red-600 text-white text-3xl font-bold leading-none w-9 h-9 rounded-full flex items-center justify-center transition shadow-lg" title="Close">×</button>
         </div>
-        <div id="modalContent" class="p-6"></div>
+        <div id="modalContent" class="p-4 max-h-[calc(100vh-150px)] overflow-y-auto"></div>
     </div>
 </div>
 
@@ -538,6 +517,8 @@ function viewOrderDetails(saleId) {
         .then(html => {
             document.getElementById('modalContent').innerHTML = html;
             document.getElementById('detailsModal').classList.remove('hidden');
+            // Scroll modal to top
+            document.getElementById('detailsModal').scrollTop = 0;
         })
         .catch(err => {
             Swal.fire('Error', 'Failed to load order details', 'error');
@@ -584,21 +565,48 @@ function assignRider(deliveryId) {
                 return;
             }
             
-            fetch('deliveries.php', {
+            // Show loading
+            Swal.fire({
+                title: 'Assigning Rider...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            fetch('ajax-assign-rider.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `assign_rider=1&delivery_id=${deliveryId}&rider_id=${riderId}`
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+                
+                // Try to get response text first to see what's actually returned
+                return response.text().then(text => {
+                    console.log('Response text:', text);
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.error('JSON parse error:', e);
+                        throw new Error('Server returned invalid JSON: ' + text.substring(0, 100));
+                    }
+                });
+            })
             .then(data => {
+                console.log('Parsed data:', data);
                 if (data.success) {
                     Swal.fire('Success', data.message, 'success').then(() => {
                         location.reload();
                     });
+                } else {
+                    Swal.fire('Error', data.message || 'Failed to assign rider', 'error');
                 }
             })
             .catch(err => {
-                Swal.fire('Error', 'Failed to assign rider', 'error');
+                console.error('Fetch error:', err);
+                Swal.fire('Error', 'Failed to assign rider: ' + err.message, 'error');
             });
         }
     });
@@ -640,7 +648,7 @@ function updateStatus(deliveryId, currentStatus) {
                 return;
             }
             
-            fetch('deliveries.php', {
+            fetch('ajax-assign-rider.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `update_status=1&delivery_id=${deliveryId}&status=${status}`

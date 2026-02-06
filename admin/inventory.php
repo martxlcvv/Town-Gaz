@@ -171,7 +171,6 @@ body {
     color: #ffffff;
     margin-bottom: 1rem;
     box-shadow: var(--shadow-medium);
-    border-left: 4px solid var(--accent-cyan);
 }
 
 .page-header h2 {

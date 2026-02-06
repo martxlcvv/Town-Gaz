@@ -777,7 +777,7 @@ if (isset($_POST['verify_code']) && empty($error)) {
                             <a href="login.php" class="btn btn-back w-100">
                                 <i class="bi bi-arrow-left me-2"></i>Back to Login
                             </a>
-                        </form>h
+                        </form>
                     <?php endif; ?>
                 </div>
             </div>

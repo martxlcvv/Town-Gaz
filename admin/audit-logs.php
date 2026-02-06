@@ -208,25 +208,23 @@ include '../includes/sidebar.php';
         </div>
 
         <!-- Filters -->
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white border-bottom">
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header bg-white border-bottom py-2 px-3">
                 <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 d-flex align-items-center">
-                        <i class="bi bi-funnel-fill me-2 text-primary"></i>Advanced Filters
-                    </h5>
+                    <h6 class="mb-0 d-flex align-items-center" style="font-size: 0.95rem;">
+                        <i class="bi bi-funnel-fill me-2 text-primary"></i>Filters
+                    </h6>
                     <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse" title="Toggle Filters">
                         <i class="bi bi-chevron-down"></i>
                     </button>
                 </div>
             </div>
             <div class="collapse show" id="filterCollapse">
-                <div class="card-body">
-                    <form method="GET" action="" class="row g-3">
-                        <div class="col-md-3">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-person-fill text-primary me-1"></i>User
-                            </label>
-                            <select name="user" class="form-select form-select-lg shadow-sm border-2">
+                <div class="card-body p-2">
+                    <form method="GET" action="" class="row g-2">
+                        <div class="col-sm-6 col-md-2">
+                            <label class="form-label mb-1" style="font-size: 0.85rem; font-weight: 600;">User</label>
+                            <select name="user" class="form-select form-select-sm shadow-sm border-1">
                                 <option value="">All Users</option>
                                 <?php mysqli_data_seek($users_result, 0); ?>
                                 <?php while ($user = mysqli_fetch_assoc($users_result)): ?>
@@ -238,11 +236,9 @@ include '../includes/sidebar.php';
                             </select>
                         </div>
                         
-                        <div class="col-md-3">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-lightning-fill text-warning me-1"></i>Action
-                            </label>
-                            <select name="action" class="form-select form-select-lg shadow-sm border-2">
+                        <div class="col-sm-6 col-md-2">
+                            <label class="form-label mb-1" style="font-size: 0.85rem; font-weight: 600;">Action</label>
+                            <select name="action" class="form-select form-select-sm shadow-sm border-1">
                                 <option value="">All Actions</option>
                                 <?php while ($action = mysqli_fetch_assoc($actions_result)): ?>
                                     <option value="<?php echo htmlspecialchars($action['action']); ?>" 
@@ -253,11 +249,9 @@ include '../includes/sidebar.php';
                             </select>
                         </div>
                         
-                        <div class="col-md-3">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-table text-info me-1"></i>Table Name
-                            </label>
-                            <select name="table" class="form-select form-select-lg shadow-sm border-2">
+                        <div class="col-sm-6 col-md-2">
+                            <label class="form-label mb-1" style="font-size: 0.85rem; font-weight: 600;">Table</label>
+                            <select name="table" class="form-select form-select-sm shadow-sm border-1">
                                 <option value="">All Tables</option>
                                 <?php mysqli_data_seek($tables_result, 0); ?>
                                 <?php while ($table = mysqli_fetch_assoc($tables_result)): ?>
@@ -269,11 +263,9 @@ include '../includes/sidebar.php';
                             </select>
                         </div>
 
-                        <div class="col-md-3">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-sliders text-success me-1"></i>Records
-                            </label>
-                            <select class="form-select form-select-lg shadow-sm border-2" onchange="changePageSize(this.value)">
+                        <div class="col-sm-6 col-md-2">
+                            <label class="form-label mb-1" style="font-size: 0.85rem; font-weight: 600;">Rows</label>
+                            <select class="form-select form-select-sm shadow-sm border-1" onchange="changePageSize(this.value)">
                                 <option value="25" <?php echo $records_per_page == 25 ? 'selected' : ''; ?>>25 entries</option>
                                 <option value="50" <?php echo $records_per_page == 50 ? 'selected' : ''; ?>>50 entries</option>
                                 <option value="100" <?php echo $records_per_page == 100 ? 'selected' : ''; ?>>100 entries</option>
@@ -281,29 +273,25 @@ include '../includes/sidebar.php';
                             </select>
                         </div>
                         
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-calendar-range text-success me-1"></i>Date From
-                            </label>
-                            <input type="date" name="date_from" class="form-control form-control-lg shadow-sm border-2" 
+                        <div class="col-sm-6 col-md-2">
+                            <label class="form-label mb-1" style="font-size: 0.85rem; font-weight: 600;">From</label>
+                            <input type="date" name="date_from" class="form-control form-control-sm shadow-sm border-1" 
                                    value="<?php echo htmlspecialchars($filter_date_from); ?>">
                         </div>
                         
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-calendar-range text-danger me-1"></i>Date To
-                            </label>
-                            <input type="date" name="date_to" class="form-control form-control-lg shadow-sm border-2" 
+                        <div class="col-sm-6 col-md-2">
+                            <label class="form-label mb-1" style="font-size: 0.85rem; font-weight: 600;">To</label>
+                            <input type="date" name="date_to" class="form-control form-control-sm shadow-sm border-1" 
                                    value="<?php echo htmlspecialchars($filter_date_to); ?>">
                         </div>
                         
                         <div class="col-12">
-                            <div class="d-flex gap-2 flex-wrap">
-                                <button type="submit" class="btn btn-primary btn-lg shadow-sm px-4">
-                                    <i class="bi bi-search me-2"></i>Apply Filters
+                            <div class="d-flex gap-2 flex-wrap align-items-end">
+                                <button type="submit" class="btn btn-primary btn-sm shadow-sm" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">
+                                    <i class="bi bi-search"></i> Filter
                                 </button>
-                                <a href="audit-logs.php" class="btn btn-outline-secondary btn-lg shadow-sm px-4">
-                                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset All
+                                <a href="audit-logs.php" class="btn btn-outline-secondary btn-sm shadow-sm" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">
+                                    <i class="bi bi-arrow-counterclockwise"></i> Reset
                                 </a>
                             </div>
                         </div>
@@ -314,42 +302,26 @@ include '../includes/sidebar.php';
 
         <!-- Audit Logs Table -->
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-white border-bottom">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-                    <div>
-                        <h5 class="mb-1 d-flex align-items-center">
-                            <i class="bi bi-list-ul text-primary me-2"></i>Activity Logs
-                            <span class="badge bg-primary ms-2 rounded-pill"><?php echo number_format($total_records); ?></span>
-                        </h5>
-                        <small class="text-muted">
-                            <i class="bi bi-info-circle me-1"></i>Showing <?php echo min($offset + 1, $total_records); ?> to <?php echo min($offset + $records_per_page, $total_records); ?> of <?php echo number_format($total_records); ?> entries
-                        </small>
-                    </div>
+            <div class="card-header bg-white border-bottom py-2 px-3">
+                <div class="d-flex justify-content-between align-items-center" style="font-size: 0.9rem;">
+                    <h6 class="mb-0 d-flex align-items-center">
+                        <i class="bi bi-list-ul text-primary me-2"></i>Logs
+                        <span class="badge bg-primary ms-2 rounded-pill" style="font-size: 0.75rem;"><?php echo number_format($total_records); ?></span>
+                    </h6>
+                    <small class="text-muted"><?php echo min($offset + 1, $total_records); ?>-<?php echo min($offset + $records_per_page, $total_records); ?> of <?php echo number_format($total_records); ?></small>
                 </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0" id="auditLogsTable">
+                    <table class="table table-hover align-middle mb-0" id="auditLogsTable" style="font-size: 0.85rem;">
                         <thead class="table-light">
                             <tr>
-                                <th class="text-center" style="width: 80px;">
-                                    <i class="bi bi-hash text-muted"></i> ID
-                                </th>
-                                <th style="width: 220px;">
-                                    <i class="bi bi-person text-muted me-1"></i>User
-                                </th>
-                                <th style="width: 200px;">
-                                    <i class="bi bi-lightning text-muted me-1"></i>Action
-                                </th>
-                                <th style="width: 160px;">
-                                    <i class="bi bi-table text-muted me-1"></i>Table
-                                </th>
-                                <th style="width: 200px;">
-                                    <i class="bi bi-clock text-muted me-1"></i>Date & Time
-                                </th>
-                                <th class="text-center" style="width: 100px;">
-                                    <i class="bi bi-eye text-muted me-1"></i>Actions
-                                </th>
+                                <th class="text-center" style="width: 60px; padding: 0.6rem 0.5rem; font-size: 0.8rem;">ID</th>
+                                <th style="width: 140px; padding: 0.6rem 0.5rem; font-size: 0.8rem;">User</th>
+                                <th style="width: 120px; padding: 0.6rem 0.5rem; font-size: 0.8rem;">Action</th>
+                                <th style="width: 100px; padding: 0.6rem 0.5rem; font-size: 0.8rem;">Table</th>
+                                <th style="width: 150px; padding: 0.6rem 0.5rem; font-size: 0.8rem;">Date & Time</th>
+                                <th class="text-center" style="width: 60px; padding: 0.6rem 0.5rem; font-size: 0.8rem;">View</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -377,11 +349,11 @@ include '../includes/sidebar.php';
                                     }
                                 ?>
                                     <tr class="audit-row">
-                                        <td class="text-center">
-                                            <span class="badge bg-light text-dark border">#<?php echo $log['log_id']; ?></span>
+                                        <td class="text-center" style="padding: 0.6rem 0.5rem;">
+                                            <span class="badge bg-light text-dark border" style="font-size: 0.7rem;">#<?php echo $log['log_id']; ?></span>
                                         </td>
-                                        <td>
-                                            <div class="d-flex align-items-center">
+                                        <td style="padding: 0.6rem 0.5rem;">
+                                            <div class="d-flex align-items-center" style="font-size: 0.8rem;">
                                                 <div class="user-avatar-lg me-2" style="background: var(--primary-blue); color: white;">
                                                     <?php echo strtoupper(substr($log['full_name'], 0, 2)); ?>
                                                 </div>
@@ -393,8 +365,8 @@ include '../includes/sidebar.php';
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
-                                            <span class="badge bg-<?php echo $badge_color; ?> d-inline-flex align-items-center gap-1 px-3 py-2">
+                                        <td style="padding: 0.6rem 0.5rem;">
+                                            <span class="badge bg-<?php echo $badge_color; ?> d-inline-flex align-items-center gap-1" style="padding: 0.35rem 0.6rem; font-size: 0.75rem;">
                                                 <i class="bi <?php echo $icon; ?>"></i>
                                                 <?php echo htmlspecialchars($log['action']); ?>
                                             </span>
@@ -421,12 +393,12 @@ include '../includes/sidebar.php';
                                                 </small>
                                             </div>
                                         </td>
-                                        <td class="text-center">
-                                            <button type="button" class="btn btn-sm btn-primary shadow-sm" 
+                                        <td class="text-center" style="padding: 0.6rem 0.5rem;">
+                                            <button type="button" class="btn btn-xs btn-outline-primary" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;" 
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#detailsModal<?php echo $log['log_id']; ?>"
                                                     title="View Details">
-                                                <i class="bi bi-eye-fill me-1"></i>View
+                                                <i class="bi bi-eye"></i>
                                             </button>
                                             
                                             <!-- Details Modal -->
@@ -567,15 +539,9 @@ include '../includes/sidebar.php';
                 
                 <!-- Pagination -->
                 <?php if ($total_pages > 1): ?>
-                    <div class="card-footer bg-white border-top">
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-                            <div class="text-muted small">
-                                Showing <strong><?php echo min($offset + 1, $total_records); ?></strong> to 
-                                <strong><?php echo min($offset + $records_per_page, $total_records); ?></strong> of 
-                                <strong><?php echo number_format($total_records); ?></strong> entries
-                            </div>
-                            <nav>
-                                <ul class="pagination pagination-lg mb-0">
+                    <div class="card-footer bg-white border-top py-2 px-3">
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0 justify-content-center">
                                     <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
                                         <a class="page-link" href="?page=1&per_page=<?php echo $records_per_page; ?>&user=<?php echo $filter_user; ?>&action=<?php echo $filter_action; ?>&table=<?php echo $filter_table; ?>&date_from=<?php echo $filter_date_from; ?>&date_to=<?php echo $filter_date_to; ?>">
                                             <i class="bi bi-chevron-bar-left"></i>
@@ -610,8 +576,7 @@ include '../includes/sidebar.php';
                                         </a>
                                     </li>
                                 </ul>
-                            </nav>
-                        </div>
+                        </nav>
                     </div>
                 <?php endif; ?>
             </div>
@@ -645,17 +610,17 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Dashboard Header with Gradient */
+/* Dashboard Header with Gradient - compact */
 .dashboard-header {
     background: linear-gradient(135deg, #1a4d5c 0%, #0f3543 100%);
-    border-radius: 16px;
-    padding: 1.75rem 2rem;
-    margin-bottom: 2rem;
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
     color: white;
-    box-shadow: 0 8px 32px rgba(26, 77, 92, 0.3);
+    box-shadow: 0 4px 15px rgba(26, 77, 92, 0.2);
     position: relative;
     overflow: hidden;
-    animation: slideInDown 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: slideInDown 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes slideInDown {
@@ -748,7 +713,8 @@ body {
 }
 
 .stat-card .card-body {
-    padding: 1.5rem;
+    padding: 1rem;
+    font-size: 0.9rem;
 }
 
 .stat-card h3 {
@@ -888,10 +854,10 @@ body {
 
 /* Pagination */
 .pagination-lg .page-link {
-    padding: 0.75rem 1rem;
-    font-size: 1rem;
-    border-radius: 10px;
-    margin: 0 4px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    margin: 0 2px;
     transition: all 0.2s;
 }
 
@@ -899,12 +865,12 @@ body {
     background: var(--primary-blue);
     border-color: transparent;
     color: white;
-    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+    box-shadow: 0 2px 6px rgba(52, 152, 219, 0.2);
 }
 
 .pagination-lg .page-link:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Buttons */
@@ -947,10 +913,10 @@ body {
 
 /* Form Controls */
 .form-select, .form-control {
-    border-radius: 10px;
+    border-radius: 8px;
     border: 1px solid var(--border-color);
     transition: all 0.2s;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
 }
 
 .form-select.border-2, .form-control.border-2 {
@@ -980,12 +946,13 @@ body {
 }
 
 .card-header {
-    padding: 1.5rem;
+    padding: 0.875rem 1rem;
     background-color: white;
+    font-size: 0.9rem;
 }
 
 .card-body {
-    padding: 1.5rem;
+    padding: 0.875rem 1rem;
     background-color: white;
 }
 
