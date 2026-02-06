@@ -17,6 +17,9 @@ header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
     <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" rel="stylesheet">
+    <!-- Global modern responsive styles for admin & staff pages -->
+    <link rel="stylesheet" href="../assets/css/modern-style.css">
+    <link rel="stylesheet" href="../assets/css/pin.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
     <script src="<?php echo (isset($_SESSION['role_name']) && $_SESSION['role_name'] == 'Admin') ? '../' : '../'; ?>assets/js/sweetalert-helper.js"></script>
